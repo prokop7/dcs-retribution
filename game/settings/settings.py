@@ -64,6 +64,7 @@ MISSION_DIFFICULTY_SECTION = "Mission Difficulty"
 MISSION_RESTRICTIONS_SECTION = "Mission Restrictions"
 
 CAMPAIGN_MANAGEMENT_PAGE = "Campaign Management"
+ADVANCED_CAMPAIGN_MANAGEMENT_PAGE = "Campaign Management+"
 
 GENERAL_SECTION = "General"
 PILOTS_AND_SQUADRONS_SECTION = "Pilots and Squadrons"

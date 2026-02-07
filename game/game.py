@@ -338,7 +338,7 @@ class Game:
         self.red.end_turn()
 
         for control_point in self.theater.controlpoints:
-            control_point.process_turn(self)
+            control_point.process_turn(self, events)
 
         # Movable ship TGOs snap to their destination and re-parent to the
         # nearest friendly CP. Runs after captures are committed (process_results
