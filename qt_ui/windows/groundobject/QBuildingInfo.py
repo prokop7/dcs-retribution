@@ -1,18 +1,25 @@
 import os
+from typing import Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QGroupBox, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QGroupBox, QLabel, QPushButton, QVBoxLayout
 
 from game.config import REWARDS
 from game.theater import TheaterUnit
 
 
 class QBuildingInfo(QGroupBox):
-    def __init__(self, building: TheaterUnit, ground_object):
+    def __init__(
+        self,
+        building: TheaterUnit,
+        ground_object,
+        on_repair: Callable[[TheaterUnit, float], None],
+    ):
         super(QBuildingInfo, self).__init__()
         self.building = building
         self.ground_object = ground_object
+        self.on_repair = on_repair
         self.init_ui()
 
     def init_ui(self):
@@ -43,5 +50,26 @@ class QBuildingInfo(QGroupBox):
             if not self.building.alive:
                 income_text = "<s>" + income_text + "</s>"
             layout.addWidget(QLabel(income_text))
+
+        if not self.building.alive:
+            if self.building.repair_turns_remaining is not None:
+                layout.addWidget(
+                    QLabel(
+                        "Repairing (" f"{self.building.repair_turns_remaining} turns)"
+                    )
+                )
+            elif self.ground_object.control_point.captured.is_blue:
+                price = self.ground_object.repair_cost()
+                if price > 0:
+                    repair = QPushButton(f"Repair [{price}M]")
+                    repair.setProperty("style", "btn-success")
+                    repair.clicked.connect(
+                        lambda checked=False, u=self.building, p=price: self.on_repair(
+                            u, p
+                        )
+                    )
+                    layout.addWidget(repair)
+            else:
+                layout.addWidget(QLabel("Destroyed"))
 
         self.setLayout(layout)
