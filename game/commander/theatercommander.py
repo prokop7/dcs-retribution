@@ -59,6 +59,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from game.ato.starttype import StartType
+from game.commander.taskpostprocessor import CombineCloseBaiTasks, TaskPostProcessor
 from game.commander.tasks.compound.nextaction import PlanNextAction
 from game.commander.tasks.theatercommandertask import TheaterCommanderTask
 from game.commander.theaterstate import TheaterState
@@ -79,6 +80,7 @@ class TheaterCommander(Planner[TheaterState, TheaterCommanderTask]):
         )
         self.game = game
         self.player = player
+        self._post_processors: list[TaskPostProcessor] = [CombineCloseBaiTasks()]
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         # Migration: Convert old boolean player values to Player enum
@@ -91,14 +93,37 @@ class TheaterCommander(Planner[TheaterState, TheaterCommanderTask]):
                 state["player"] = Player.RED
 
         self.__dict__.update(state)
+        if "_post_processors" not in self.__dict__:
+            self._post_processors = [CombineCloseBaiTasks()]
 
     def plan_missions(self, now: datetime, tracer: MultiEventTracer) -> None:
         state = TheaterState.from_game(self.game, self.player, now, tracer)
+        initial_state = state.clone()
+        planned_tasks: list[TheaterCommanderTask] = []
         while True:
             result = self.plan(state)
             if result is None:
                 # Planned all viable tasks this turn.
-                return
-            for task in result.tasks:
-                task.execute(self.game.coalition_for(self.player))
+                break
+            planned_tasks.extend(result.tasks)
             state = result.end_state
+
+        if not planned_tasks:
+            return
+
+        tasks = self._post_process_tasks(planned_tasks, state, initial_state)
+        for task in tasks:
+            task.execute(self.game.coalition_for(self.player))
+
+    def add_post_processor(self, processor: TaskPostProcessor) -> None:
+        self._post_processors.append(processor)
+
+    def _post_process_tasks(
+        self,
+        tasks: list[TheaterCommanderTask],
+        state: TheaterState,
+        initial_state: TheaterState,
+    ) -> list[TheaterCommanderTask]:
+        for processor in self._post_processors:
+            tasks = processor.apply(tasks, state, initial_state)
+        return tasks

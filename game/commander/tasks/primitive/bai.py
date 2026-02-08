@@ -23,5 +23,6 @@ class PlanBai(PackagePlanningTask[VehicleGroupGroundObject]):
 
     def propose_flights(self) -> None:
         tgt_count = self.target.alive_unit_count
-        self.propose_flight(FlightType.BAI, min(4, (tgt_count // 4) + 1))
+        bai_aircraft = (tgt_count + 3) // 4 + 1
+        self.propose_flight(FlightType.BAI, bai_aircraft)
         self.propose_common_escorts()

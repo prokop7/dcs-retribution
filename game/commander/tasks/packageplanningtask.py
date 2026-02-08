@@ -65,6 +65,14 @@ class PackagePlanningTask(TheaterCommanderTask, Generic[MissionTargetT]):
             raise RuntimeError("Attempted to execute failed package planning task")
         coalition.ato.add_package(self.package)
 
+    def release_package(self) -> None:
+        if self.package is None:
+            return
+        flights = list(self.package.flights)
+        for flight in flights:
+            self.package.remove_flight(flight)
+        self.package = None
+
     @abstractmethod
     def propose_flights(self) -> None: ...
 
@@ -74,7 +82,11 @@ class PackagePlanningTask(TheaterCommanderTask, Generic[MissionTargetT]):
         num_aircraft: int,
         escort_type: Optional[EscortType] = None,
     ) -> None:
-        self.flights.append(ProposedFlight(task, num_aircraft, escort_type))
+        remaining = num_aircraft
+        while remaining > 0:
+            flight_size = min(4, remaining)
+            self.flights.append(ProposedFlight(task, flight_size, escort_type))
+            remaining -= flight_size
 
     @property
     def asap(self) -> bool:
