@@ -31,8 +31,9 @@ def _dispatch(
     # serialized with every other commander call.
     with GAME_LOCK, EventStream.event_context() as events:
         game = GameContext.require()
+        sightings = tuple(game.coalition_for(player).commander.sightings)
         return commander_dispatcher.handle(
-            payload, lambda: CommanderContext(game, player, events)
+            payload, lambda: CommanderContext(game, player, events, sightings)
         )
 
 

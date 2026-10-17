@@ -9,6 +9,7 @@ from typing import Optional, TYPE_CHECKING
 from game.debriefing import Debriefing
 from game.missiongenerator import MissionGenerator
 from game.settings.settings import FastForwardStopCondition, CombatResolutionMethod
+from game.theater.player import Player
 from game.unitmap import UnitMap
 from .aircraftsimulation import AircraftSimulation
 from .missionresultsprocessor import MissionResultsProcessor
@@ -106,6 +107,22 @@ class MissionSimulation:
             )
 
         MissionResultsProcessor(self.game).commit(debriefing, events)
+        self._record_commander_debriefings(debriefing)
+
+    def _record_commander_debriefings(self, debriefing: Debriefing) -> None:
+        from game.claudecommander.coordinator import commander_enabled
+        from game.claudecommander.debrief import (
+            sightings_from_debriefing,
+            summarize_debriefing,
+        )
+
+        for player in (Player.BLUE, Player.RED):
+            if not commander_enabled(self.game, player):
+                continue
+            self.game.coalition_for(player).commander.record_debriefing(
+                summarize_debriefing(debriefing, player),
+                sightings_from_debriefing(debriefing, player, self.game.turn),
+            )
 
     def finish(self) -> None:
         self.unit_map = None

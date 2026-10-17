@@ -17,3 +17,18 @@ from game.claudecommander.mcp.tools import NoArguments
 )
 def get_situation(context: CommanderContext, _args: NoArguments) -> dict[str, Any]:
     return context.view().situation()
+
+
+@commander_tools.register(
+    "get_debrief",
+    "After-action summary of the last mission flown, as your side knows it: your "
+    "losses (aircraft by type, base and task; ground units; sites; runways), enemy "
+    "losses you can confirm, bases that changed hands, the results of each of your "
+    "packages, and enemy aircraft types encountered.",
+    read_only=True,
+)
+def get_debrief(context: CommanderContext, _args: NoArguments) -> dict[str, Any]:
+    debrief = context.game.coalition_for(context.player).commander.last_debrief
+    if debrief is None:
+        return {"debrief": None, "note": "No mission has been flown yet."}
+    return {"debrief": debrief}

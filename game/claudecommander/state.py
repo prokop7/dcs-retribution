@@ -6,6 +6,23 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 
+@dataclass(frozen=True)
+class EnemySighting:
+    """An enemy aircraft the side has seen, for example in a debriefing.
+
+    Hook for the enemy order of battle: by default (design doc section 4) the enemy
+    air order of battle is hidden, and only what a side has actually encountered is
+    revealed through these sightings.
+    """
+
+    aircraft_type: str
+    turn: int
+    #: How it was seen, e.g. "shot_down" or "encountered".
+    how: str
+    #: Name of the base it came from, if known.
+    origin: Optional[str] = None
+
+
 @dataclass
 class CommanderState:
     """What a coalition's commander needs to survive save and load.
@@ -31,6 +48,12 @@ class CommanderState:
     #: Fog-filtered summary of the last mission, delivered with the next turn run.
     pending_debrief: Optional[dict[str, Any]] = None
 
+    #: Fog-filtered summary of the last mission, kept for get_debrief.
+    last_debrief: Optional[dict[str, Any]] = None
+
+    #: Enemy aircraft this side has encountered, revealed to its commander.
+    sightings: list[EnemySighting] = field(default_factory=list)
+
     #: The turn the commander called finish_turn_planning for.
     finished_turn: int = -1
 
@@ -42,6 +65,15 @@ class CommanderState:
         new_state = CommanderState().__dict__
         new_state.update(state)
         self.__dict__.update(new_state)
+
+    def record_debriefing(
+        self, summary: dict[str, Any], sightings: list[EnemySighting]
+    ) -> None:
+        self.pending_debrief = summary
+        self.last_debrief = summary
+        known = set(self.sightings)
+        self.sightings.extend(s for s in sightings if s not in known)
+        self.needs_planning = True
 
     def record_change(self, change: str) -> None:
         if change not in self.pending_changes:

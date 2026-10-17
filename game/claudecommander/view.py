@@ -42,6 +42,7 @@ from dcs.mapping import LatLng, Point
 from dcs.unittype import VehicleType
 
 from game.ato.flighttype import FlightType
+from game.claudecommander.state import EnemySighting
 from game.claudecommander.mcp.tools import ToolError
 from game.config import REWARDS
 from game.data.radar_db import LAUNCHER_TRACKER_PAIRS, TELARS, TRACK_RADARS
@@ -106,23 +107,6 @@ def page(items: Sequence[Any], offset: int, limit: int) -> tuple[list[Any], Json
 
 class UnknownIdError(ToolError):
     pass
-
-
-@dataclass(frozen=True)
-class EnemySighting:
-    """An enemy aircraft the side has seen, for example in a debriefing.
-
-    Hook for the enemy order of battle: by default (design doc section 4) the enemy
-    air order of battle is hidden, and only what a side has actually encountered is
-    revealed through these sightings.
-    """
-
-    aircraft_type: str
-    turn: int
-    #: How it was seen, e.g. "shot_down" or "encountered".
-    how: str
-    #: Name of the base it came from, if known.
-    origin: Optional[str] = None
 
 
 @dataclass(frozen=True)

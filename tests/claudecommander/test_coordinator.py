@@ -217,3 +217,16 @@ def test_success_clears_request(coordinator: Any) -> None:
     assert state.pending_changes == []
     assert len(runner.messages) == 1
     assert not game.coalition_for(Player.RED).commander.needs_planning
+
+
+def test_record_debriefing_keeps_unique_sightings() -> None:
+    from game.claudecommander.state import EnemySighting
+
+    state = CommanderState()
+    mig = EnemySighting("MiG-29A", 3, "shot_down", "Mozdok")
+    state.record_debriefing({"own_losses": {}}, [mig])
+    state.record_debriefing({"own_losses": {"F-16C": 1}}, [mig])
+    assert state.sightings == [mig]
+    assert state.last_debrief == {"own_losses": {"F-16C": 1}}
+    assert state.pending_debrief == state.last_debrief
+    assert state.needs_planning
