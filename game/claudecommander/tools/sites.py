@@ -71,13 +71,21 @@ def _tasks_for(tgo: TheaterGroundObject) -> list[GroupTask]:
     raise ToolError(f"{tgo.name} ({tgo.category}) cannot be bought or rebuilt.")
 
 
+#: Sites only the player can change, and only during campaign setup (turn 0).
+_SETUP_ONLY_CATEGORIES = ("ship", "missile", "coastal")
+
+
 def _purchasable_site(view: CommanderView, tgo_id: str) -> TheaterGroundObject:
     tgo = view.own_ground_object(tgo_id)
+    # The game lets the player reshape ships, missile and coastal sites on turn 0
+    # as campaign setup. That is the player's privilege, not a purchase a
+    # commander can make.
+    if tgo.category in _SETUP_ONLY_CATEGORIES:
+        raise ToolError(
+            f"{tgo.name} ({tgo.category}) cannot be rebuilt by a commander: only "
+            "SAM, EWR and armor sites can be bought or rebuilt."
+        )
     if not tgo.purchasable:
-        if tgo.category in ("ship", "missile", "coastal"):
-            raise ToolError(
-                f"{tgo.name} ({tgo.category}) can only be bought on turn 0."
-            )
         raise ToolError(f"{tgo.name} ({tgo.category}) cannot be bought or rebuilt.")
     _tasks_for(tgo)
     return tgo
@@ -158,11 +166,12 @@ class SiteOptionsArgs(BaseModel):
 
 @commander_tools.register(
     "get_site_options",
-    "What you can buy at one of your own sites (SAM, EWR or armor site; ships, "
-    "missile and coastal sites only on turn 0): the force groups of your faction "
-    "and their layouts, each layout's groups and unit groups with the unit types "
-    "(price each), default and maximum count, and the refund you get for what is "
-    "there now (current units plus repairs in progress).",
+    "What you can buy at one of your own SAM, EWR or armor sites: the force "
+    "groups of your faction and their layouts, each layout's groups and unit "
+    "groups with the unit types (price each), default and maximum count, and the "
+    "refund you get for what is there now (current units plus repairs in "
+    "progress). Rebuilding costs the new units' price minus that refund, out of "
+    "your budget, on every turn including turn 0.",
     SiteOptionsArgs,
     read_only=True,
 )
@@ -177,7 +186,6 @@ def get_site_options(context: CommanderContext, args: SiteOptionsArgs) -> Json:
         "site": tgo.name,
         "category": tgo.category,
         "refund_for_current_units": _refund_value(tgo),
-        "free_on_turn_0": context.game.turn == 0,
         "activation_turns": context.game.settings.purchased_ground_object_activation_turns,
         "budget": _budget(view),
     }
@@ -304,10 +312,10 @@ def _plan_purchase(
 
 @commander_tools.register(
     "buy_or_rebuild_site",
-    "Replaces the units of one of your sites with a new group bought from a force "
-    "group layout, exactly like the site's buy menu: the units there now (and "
-    "repairs in progress) are refunded, the new units are paid for (free on turn "
-    "0), and units bought after turn 0 only come into service after the "
+    "Replaces the units of one of your SAM, EWR or armor sites with a new group "
+    "bought from a force group layout: the units there now (and repairs in "
+    "progress) are refunded and the new units are paid for out of your budget, "
+    "on every turn including turn 0. New units come into service after the "
     "configured activation delay. Use get_site_options first. Returns the cost "
     "and the remaining budget.",
     BuySiteArgs,
@@ -333,15 +341,15 @@ def buy_or_rebuild_site(context: CommanderContext, args: BuySiteArgs) -> Json:
     price = sum(p.price for p in purchases)
     refund = _refund_value(tgo)
     cost = price - refund
-    if game.turn and cost > view.coalition.budget:
+    # Unlike the player's campaign setup, commanders always pay: on turn 0 too.
+    if cost > view.coalition.budget:
         raise ToolError(
             f"The new group costs {price}M minus a refund of {refund}M = {cost}M; you "
             f"have {_budget(view)}M."
         )
 
     tgo.heading = game.theater.heading_to_conflict_from(tgo.position) or tgo.heading
-    if game.turn:
-        view.coalition.budget -= cost
+    view.coalition.budget -= cost
     tgo.groups = []
     for purchase in purchases:
         force_group.create_theater_group_for_tgo(
@@ -354,7 +362,7 @@ def buy_or_rebuild_site(context: CommanderContext, args: BuySiteArgs) -> Json:
         )
     tgo.required_unit_classes = ForceGroup.required_unit_classes_for_layout(layout)
     activation_turns = game.settings.purchased_ground_object_activation_turns
-    delayed = bool(game.turn and activation_turns > 0)
+    delayed = activation_turns > 0
     if delayed:
         for unit in tgo.units:
             if not unit.repairable:
@@ -373,7 +381,7 @@ def buy_or_rebuild_site(context: CommanderContext, args: BuySiteArgs) -> Json:
         ],
         "price": price,
         "refund": refund,
-        "cost": cost if game.turn else 0,
+        "cost": cost,
         "budget_remaining": _budget(view),
     }
     if delayed:

@@ -352,3 +352,48 @@ def test_journal_and_finish(game: Game) -> None:
     assert result["ok"] is True
     assert game.red.commander.finished_turn == game.turn
     assert "issues" in result["air_plan"]
+
+
+def test_commanders_pay_for_site_rebuilds_on_turn_zero(game: Game) -> None:
+    """Turn 0 rebuilds are free for the player's campaign setup, never for Claude."""
+    game.turn = 0
+    caller = Caller(game, Player.RED)
+    sam = own_site(game, Player.RED, SamGroundObject)
+    # Nothing left to refund, so any rebuild costs its full price.
+    for unit in sam.units:
+        unit.alive = False
+        unit.repair_turns_remaining = None
+    options = caller.ok("get_site_options", {"tgo_id": str(sam.id)})
+    assert "free_on_turn_0" not in options
+    assert options["refund_for_current_units"] == 0
+    force_group = options["force_groups"][0]["force_group"]
+    refund = 0
+
+    game.red.budget = 0
+    text = caller.error(
+        "buy_or_rebuild_site", {"tgo_id": str(sam.id), "force_group": force_group}
+    )
+    assert "you have 0" in text
+
+    game.red.budget = 5000
+    data = caller.ok(
+        "buy_or_rebuild_site", {"tgo_id": str(sam.id), "force_group": force_group}
+    )
+    assert data["cost"] == data["price"] - refund
+    assert game.red.budget == pytest.approx(5000 - data["price"] + refund)
+
+
+def test_commanders_cannot_reshape_setup_only_sites(game: Game) -> None:
+    game.turn = 0
+    for player in (Player.RED, Player.BLUE):
+        caller = Caller(game, player)
+        for tgo in game.theater.ground_objects:
+            if tgo.control_point.captured is player and tgo.category in (
+                "ship",
+                "missile",
+                "coastal",
+            ):
+                text = caller.error("get_site_options", {"tgo_id": str(tgo.id)})
+                assert "cannot be rebuilt by a commander" in text
+                return
+    pytest.skip("The test campaign has no ship, missile or coastal site")
