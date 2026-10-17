@@ -261,6 +261,8 @@ class QPackageDialog(QDialog):
             self.auto_create_button.setDisabled(True)
 
     def on_change_name(self) -> None:
+        if self.package_model.package.custom_name != self.package_name_text.text():
+            self.package_model.lock()
         self.package_model.package.custom_name = self.package_name_text.text()
 
     def on_open_radio(self) -> None:
@@ -272,6 +274,7 @@ class QPackageDialog(QDialog):
 
     def assign_frequency(self):
         hz = round(self.package_frequency_dialog.frequency_input.value() * 10**6)
+        self.package_model.lock()
         self.package_model.package.frequency = RadioFrequency(hertz=hz)
         self.package_changed.emit()
 

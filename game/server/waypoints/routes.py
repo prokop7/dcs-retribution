@@ -65,6 +65,8 @@ def set_position(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     waypoint = flight.flight_plan.waypoints[waypoint_idx - 1]
+    # A player edit: Claude commanders must leave this package alone from now on.
+    flight.package.player_locked = True
     waypoint.position = Point.from_latlng(
         LatLng(position.lat, position.lng), game.theater.terrain
     )

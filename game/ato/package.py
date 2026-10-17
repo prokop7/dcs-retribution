@@ -24,6 +24,12 @@ if TYPE_CHECKING:
 class Package(RadioFrequencyContainer):
     """A mission package."""
 
+    #: True once the player created or edited this package in the UI (Qt dialogs or
+    #: the map). Claude commanders must not change or delete locked packages. Declared
+    #: on the class so that packages from saves made before the flag existed load as
+    #: unlocked; instances only get their own value once something sets it.
+    player_locked: bool = False
+
     def __init__(
         self,
         target: MissionTarget,

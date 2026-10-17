@@ -157,8 +157,17 @@ class PackageModel(QAbstractListModel):
             return QIcon(AIRCRAFT_ICONS[name])
         return None
 
+    def lock(self) -> None:
+        """Marks the package as made or edited by the player.
+
+        Claude commanders leave locked packages alone. Every player edit that goes
+        through this model locks the package.
+        """
+        self.package.player_locked = True
+
     def add_flight(self, flight: Flight) -> None:
         """Adds the given flight to the package."""
+        self.lock()
         with self.game_model.sim_controller.paused_sim():
             self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount())
             self.package.add_flight(flight)
@@ -171,6 +180,7 @@ class PackageModel(QAbstractListModel):
         self.cancel_or_abort_flight(self.flight_at_index(index))
 
     def cancel_or_abort_flight(self, flight: Flight) -> None:
+        self.lock()
         with self.game_model.sim_controller.paused_sim():
             if flight.state.cancelable:
                 self.delete_flight(flight)
@@ -181,6 +191,7 @@ class PackageModel(QAbstractListModel):
 
     def delete_flight(self, flight: Flight) -> None:
         """Removes the given flight from the package."""
+        self.lock()
         with self.game_model.sim_controller.paused_sim():
             index = self.package.flights.index(flight)
             self.beginRemoveRows(QModelIndex(), index, index)
@@ -195,11 +206,17 @@ class PackageModel(QAbstractListModel):
         return self.package.flights[index.row()]
 
     def set_tot(self, tot: datetime.datetime) -> None:
+        # The package dialog writes its TOT back whenever it closes or its time
+        # widget refreshes, so only a real change counts as a player edit.
+        if tot != self.package.time_over_target:
+            self.lock()
         with self.game_model.sim_controller.paused_sim():
             self.package.time_over_target = tot
             self.update_tot()
 
     def set_asap(self, asap: bool) -> None:
+        if asap != self.package.auto_asap:
+            self.lock()
         with self.game_model.sim_controller.paused_sim():
             self.package.auto_asap = asap
             self.update_tot()
@@ -269,7 +286,8 @@ class AtoModel(QAbstractListModel):
         return None
 
     def add_package(self, package: Package) -> None:
-        """Adds a package to the ATO."""
+        """Adds a package the player made (or cloned) to the ATO."""
+        package.player_locked = True
         with self.game_model.sim_controller.paused_sim():
             self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount())
             self.ato.add_package(package)
