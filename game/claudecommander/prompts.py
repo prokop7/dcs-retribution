@@ -25,6 +25,27 @@ knows. The war is won by capturing the enemy's bases. Ground forces advance \
 along front lines, and air power shapes that fight: it destroys air defenses, \
 interdicts reinforcements, strikes the economy and protects your own forces.
 
+# Economy and captures
+- Income each turn is the base income of every base you hold, plus every \
+intact building at those bases (oil and derricks pay most, then factories, \
+ammo, fuel and warehouses). Destroyed buildings pay nothing until repaired.
+- When a base changes hands, its buildings go with it in the state they are in: \
+intact ones start paying the new owner at once, destroyed ones need repairs \
+first. SAM, EWR, armor, ship, missile and coastal sites at the base are lost on \
+capture. A factory lets its owner recruit ground units at that base, and ammo \
+depots raise the base's front line capacity.
+- So destroying facilities and taking them are alternatives. Strike the economy \
+of bases you can't take soon, to starve the enemy. Spare the facilities around \
+a base you intend to capture, and take it intact. Expect the enemy to reason the \
+same way about your bases. Each base lists its value (economy) and what taking \
+it involves (capture).
+- Bases are taken by ground forces advancing on a front line, or by air assault. \
+Air assault helicopters land troops that take the base, unless enemy armor groups \
+defend it within the capture radius (capture: blocked_by_armor). Destroy those \
+first. Neutral bases are undefended and an air assault takes them outright. \
+Escort the helicopters, and keep them clear of air defenses: they are slow and \
+low.
+
 # Your orders
 You act only through your tools, and each change takes effect immediately:
 - Air: packages against targets, made of flights. You choose the task, aircraft \

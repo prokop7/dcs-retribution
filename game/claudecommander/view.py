@@ -52,8 +52,10 @@ from game.theater.frontline import FrontLine
 from game.theater.missiontarget import MissionTarget
 from game.theater.player import Player
 from game.theater.theatergroundobject import (
+    BuildingGroundObject,
     MotorpoolGroundObject,
     TheaterGroundObject,
+    VehicleGroupGroundObject,
 )
 
 if TYPE_CHECKING:
@@ -564,6 +566,7 @@ class CommanderView:
         result["ammo_depots_alive"] = cp.active_ammo_depots_count
         result["ammo_depots_total"] = cp.total_ammo_depots_count
         result["front_line_unit_capacity"] = cp.frontline_unit_count_limit
+        result["economy"] = self.base_economy(cp, own=True)
         result["connected_to"] = [c.name for c in cp.connected_points]
         enemy_fronts = [c.name for c in cp.front_lines]
         if enemy_fronts:
@@ -577,6 +580,78 @@ class CommanderView:
         result["runway"] = self._runway(cp, own=False)
         result["parking"] = self._parking(cp)
         result["connected_to"] = [c.name for c in cp.connected_points]
+        result["capture"] = self.capture_facts(cp)
+        result["economy"] = self.base_economy(cp, own=False)
+        return result
+
+    def capture_facts(self, cp: ControlPoint) -> Json:
+        """What taking a base involves, from what this side knows.
+
+        Air assault troops can take a base unless armor groups defend it within
+        the capture radius; those must be destroyed first. Their partial damage is
+        hidden like for any enemy site, so a group counts until it is destroyed.
+        """
+        blocking = [
+            tgo.name
+            for tgo in cp.ground_objects
+            if isinstance(tgo, VehicleGroupGroundObject)
+            and not tgo.is_dead
+            and tgo.distance_to(cp) < ControlPoint.CAPTURE_DISTANCE.meters
+        ]
+        facts: Json = {
+            "air_assault_possible": FlightType.AIR_ASSAULT in self.mission_types_for(cp)
+            and not cp.is_fleet,
+            "blocked_by_armor": blocking,
+            "capture_radius_nm": to_nm(ControlPoint.CAPTURE_DISTANCE.meters),
+            "front_line_with_you": any(
+                fl.control_point_friendly_to(self.player).captured is self.player
+                for fl in cp.front_lines.values()
+            ),
+        }
+        if not self.game.settings.plugin_option("ctld"):
+            facts["air_assault_possible"] = False
+            facts["air_assault_note"] = (
+                "Air assault needs the CTLD plugin, which is off."
+            )
+        if cp.captured.is_neutral:
+            facts["note"] = "Neutral and undefended: an air assault takes it."
+        return facts
+
+    def base_economy(self, cp: ControlPoint, own: bool) -> Json:
+        """Income and facilities a base is worth to whoever holds it.
+
+        Buildings change hands with the base in the state they are in; destroyed
+        ones pay nothing until their new owner repairs them. Enemy buildings are
+        known at full strength unless destroyed (partial damage is hidden).
+        """
+        intact = 0.0
+        destroyed = 0.0
+        facilities: Counter[str] = Counter()
+        for tgo in cp.ground_objects:
+            if not isinstance(tgo, BuildingGroundObject):
+                continue
+            statics = list(tgo.statics)
+            per_building = REWARDS.get(tgo.category, 0)
+            alive = sum(1 for b in statics if b.alive)
+            if not own and alive:
+                # Known at full strength until every building is destroyed.
+                alive = len(statics)
+            intact += alive * per_building
+            destroyed += (len(statics) - alive) * per_building
+            if alive:
+                facilities[tgo.category] += 1
+        result: Json = {
+            "base_income": cp.income_per_turn,
+            "building_income": round(intact, 1),
+            "value_per_turn": round(cp.income_per_turn + intact, 1),
+            "facilities": dict(facilities),
+        }
+        if destroyed:
+            result["destroyed_building_income"] = round(destroyed, 1)
+        if facilities.get("factory"):
+            result["note_factory"] = "Ground units can be recruited at this base."
+        if facilities.get("ammo"):
+            result["note_ammo"] = "Ammo depots raise this base's front line capacity."
         return result
 
     def own_bases(self) -> list[Json]:
@@ -900,10 +975,8 @@ class CommanderView:
 
     def mission_target_objects(self) -> Iterator[MissionTarget]:
         """Everything this side could plan a package against."""
-        for cp in self.game.theater.controlpoints:
-            if cp.captured.is_neutral:
-                continue
-            yield cp
+        # Neutral bases too: they can be taken by air assault.
+        yield from self.game.theater.controlpoints
         for front in self.front_line_objects():
             yield front
         for cp in self.game.theater.controlpoints:
@@ -918,6 +991,10 @@ class CommanderView:
         seen: dict[FlightType, None] = {}
         for task in target.mission_types(self.player):
             seen[task] = None
+        if isinstance(target, ControlPoint) and target.captured.is_neutral:
+            # Nobody defends or uses a neutral base; the only point in going there
+            # is taking it.
+            return [t for t in seen if t is FlightType.AIR_ASSAULT]
         return list(seen)
 
     # Catalogue ------------------------------------------------------------------------

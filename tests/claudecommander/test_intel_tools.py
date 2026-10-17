@@ -298,6 +298,8 @@ def test_enemy_bases_show_no_forces(test_game: Game, player: Player) -> None:
     for base in data["bases"]:
         assert base["owner"] in ("enemy", "neutral")
         assert set(base) <= {
+            "capture",
+            "economy",
             "id",
             "name",
             "type",
