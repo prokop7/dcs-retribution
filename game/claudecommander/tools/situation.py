@@ -11,8 +11,10 @@ from game.claudecommander.mcp.tools import NoArguments
     "Overview of the campaign for your side: turn, date and start time, time of "
     "day, weather (clouds, fog, wind at surface/6500 ft/26000 ft, QNH, "
     "temperature), budget and income per turn, victory state, your faction and "
-    "doctrine, the enemy faction, and base/front line counts. Units: nm, ft, kt, "
-    "true degrees; wind direction is where it blows from.",
+    "doctrine, the enemy faction, base/front line counts, and your_domains: the "
+    "decisions you own (a BLUE commander shares the side with the player, who "
+    "keeps the domains not listed). Units: nm, ft, kt, true degrees; wind "
+    "direction is where it blows from.",
     read_only=True,
 )
 def get_situation(context: CommanderContext, _args: NoArguments) -> dict[str, Any]:

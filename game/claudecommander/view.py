@@ -42,6 +42,7 @@ from dcs.mapping import LatLng, Point
 from dcs.unittype import VehicleType
 
 from game.ato.flighttype import FlightType
+from game.claudecommander.domains import owned_domains
 from game.claudecommander.state import EnemySighting
 from game.claudecommander.mcp.tools import ToolError
 from game.config import REWARDS
@@ -451,6 +452,7 @@ class CommanderView:
             "enemy_bases": sum(1 for _ in game.theater.control_points_for(self.enemy)),
             "front_lines": len(self.front_line_objects()),
             "restrict_weapons_by_date": game.settings.restrict_weapons_by_date,
+            "your_domains": owned_domains(game, self.player),
         }
 
     # Control points ---------------------------------------------------------------
@@ -587,6 +589,16 @@ class CommanderView:
             **position(tgo.position),
         }
 
+    @staticmethod
+    def _dead_unit_json(unit: TheaterUnit) -> Json:
+        """A dead unit of an own site, named so repair tools can address it."""
+        result: Json = {"unit": unit.name, "type": _unit_label(unit)}
+        if unit.repair_turns_remaining is not None:
+            result["repair_turns_remaining"] = unit.repair_turns_remaining
+        elif not unit.repairable and not unit.is_static:
+            result["repairable"] = False
+        return result
+
     def own_ground_object_json(self, tgo: TheaterGroundObject) -> Json:
         result = self._tgo_header(tgo)
         units: dict[str, list[int]] = {}
@@ -595,6 +607,9 @@ class CommanderView:
             counts[0] += int(unit.alive)
             counts[1] += 1
         result["units_alive_total"] = units
+        dead = [self._dead_unit_json(unit) for unit in tgo.units if not unit.alive]
+        if dead:
+            result["dead_units"] = dead
         result["alive"] = tgo.alive_unit_count
         result["total"] = tgo.unit_count
         threat = tgo.max_threat_range().meters
@@ -808,15 +823,21 @@ class CommanderView:
 
     def package_json(self, package: Package, include_waypoints: bool) -> Json:
         primary = package.primary_task
-        return {
+        result: Json = {
             "id": PACKAGE_IDS.id_for(package),
             "target": self._target_json(package.target),
             "primary_task": primary.value if primary is not None else None,
             "tot": _time(package.time_over_target),
-            "flights": [
-                self.flight_json(f, include_waypoints) for f in package.flights
-            ],
         }
+        if package.auto_asap:
+            result["asap"] = True
+        if package.player_locked:
+            # Made or edited by the player: commanders must not change it.
+            result["locked"] = True
+        result["flights"] = [
+            self.flight_json(f, include_waypoints) for f in package.flights
+        ]
+        return result
 
     def ato(self, include_waypoints: bool = False) -> list[Json]:
         return [
