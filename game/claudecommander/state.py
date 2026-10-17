@@ -45,6 +45,11 @@ class CommanderState:
     #: Changes the commander hasn't been told about yet.
     pending_changes: list[str] = field(default_factory=list)
 
+    #: Changes that ride along with the next run without causing one, such as the
+    #: opposing commander rebuilding a site while both are planning. Replanning on
+    #: those would let two commanders trigger each other back and forth.
+    deferred_changes: list[str] = field(default_factory=list)
+
     #: Fog-filtered summary of the last mission, delivered with the next turn run.
     pending_debrief: Optional[dict[str, Any]] = None
 
@@ -75,7 +80,11 @@ class CommanderState:
         self.sightings.extend(s for s in sightings if s not in known)
         self.needs_planning = True
 
-    def record_change(self, change: str) -> None:
+    def record_change(self, change: str, replan: bool = True) -> None:
+        if not replan:
+            if change not in self.deferred_changes:
+                self.deferred_changes.append(change)
+            return
         if change not in self.pending_changes:
             self.pending_changes.append(change)
         self.needs_planning = True

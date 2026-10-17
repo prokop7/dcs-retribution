@@ -516,14 +516,15 @@ class Game:
         events.begin_new_turn()
 
     def notify_commander(
-        self, player: Player, change: str, replan: bool = False
+        self, player: Player, change: str, replan: bool = False, defer: bool = False
     ) -> None:
         """Tells a Claude commander about a change to the situation.
 
         The change is delivered with the commander's next planning run. With
         ``replan`` that run is requested right away; otherwise it is expected to be
-        triggered by a following ``initialize_turn``. Does nothing for sides not
-        commanded by Claude.
+        triggered by a following ``initialize_turn``. With ``defer`` the change waits
+        for whatever run comes next and never causes one. Does nothing for sides
+        not commanded by Claude.
         """
         from game.claudecommander.coordinator import (
             CommanderCoordinator,
@@ -532,8 +533,8 @@ class Game:
 
         if not commander_enabled(self, player):
             return
-        self.coalition_for(player).commander.record_change(change)
-        if replan:
+        self.coalition_for(player).commander.record_change(change, replan=not defer)
+        if replan and not defer:
             CommanderCoordinator.get().request(self, player)
 
     def message(self, title: str, text: str = "") -> None:

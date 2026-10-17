@@ -249,7 +249,9 @@ class CommanderCoordinator:
             )
             # Changes and needs_planning stay in the saved state until the run
             # succeeds, so a game saved or closed mid-run plans again on load.
-            changes = list(state.pending_changes)
+            changes = list(state.pending_changes) + [
+                c for c in state.deferred_changes if c not in state.pending_changes
+            ]
             brief = RunBrief(
                 kind=kind,
                 turn=game.turn,
@@ -302,6 +304,9 @@ class CommanderCoordinator:
                 state.last_error = None
                 state.pending_changes = [
                     c for c in state.pending_changes if c not in changes
+                ]
+                state.deferred_changes = [
+                    c for c in state.deferred_changes if c not in changes
                 ]
                 state.needs_planning = rerun or bool(state.pending_changes)
                 assign_missing_tots(coalition, game.conditions.start_time)

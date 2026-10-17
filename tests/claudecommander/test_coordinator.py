@@ -230,3 +230,32 @@ def test_record_debriefing_keeps_unique_sightings() -> None:
     assert state.last_debrief == {"own_losses": {"F-16C": 1}}
     assert state.pending_debrief == state.last_debrief
     assert state.needs_planning
+
+
+def test_deferred_change_rides_along_without_rerun(coordinator: Any) -> None:
+    coord, runner = coordinator(
+        [
+            ClaudeRunResult(session_id="s1", success=True),
+            ClaudeRunResult(session_id="s1", success=True),
+        ]
+    )
+    runner.release.clear()
+    game = make_game()
+    listener = Listener()
+    coord.attach(game, listener)
+    coord.request(game, Player.RED)
+    wait_until(lambda: len(runner.messages) == 1)
+
+    state = game.coalition_for(Player.RED).commander
+    state.record_change("Enemy site SA-10 changed.", replan=False)
+    runner.release.set()
+    wait_until(lambda: len(listener.finished) == 1)
+    wait_until(lambda: not coord.is_planning(Player.RED))
+    assert len(runner.messages) == 1  # No rerun for a deferred change.
+    assert state.deferred_changes == ["Enemy site SA-10 changed."]
+
+    coord.request(game, Player.RED, "Weather changed.")
+    wait_until(lambda: len(listener.finished) == 2)
+    wait_until(lambda: not coord.is_planning(Player.RED))
+    assert "Enemy site SA-10 changed." in runner.messages[1]
+    assert state.deferred_changes == []

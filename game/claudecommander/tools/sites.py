@@ -44,10 +44,10 @@ def _site_changed(
     events = context.events
     events.update_tgo(tgo)
     context.game.theater.iads_network.update_tgo(tgo, events)
-    # Static intelligence: the other side learns that the site changed, like when
-    # the player changes a site in the UI. Delivered with its next planning run.
+    # Static intelligence: the other side learns that the site changed. Deferred
+    # to its next run so the two commanders can't keep re-triggering each other.
     context.game.notify_commander(
-        context.player.opponent, f"Enemy site {tgo.name} changed: {what}."
+        context.player.opponent, f"Enemy site {tgo.name} changed: {what}.", defer=True
     )
 
 
