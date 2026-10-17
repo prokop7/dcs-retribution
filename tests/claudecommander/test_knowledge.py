@@ -15,7 +15,8 @@ def test_bundled_lessons_are_loaded(tmp_path: Path) -> None:
 def test_commanders_add_lessons_once(tmp_path: Path) -> None:
     user_file = tmp_path / "knowledge.md"
     knowledge = CommanderKnowledge(user_file, bundled_file=tmp_path / "none.md")
-    assert knowledge.add("Mirage F1 tanks limit it to two AIM-9s.")
+    assert knowledge.add("Mirage F1 tanks limit it to two AIM-9s.", "Red, Test, turn 3")
+    assert "<!-- Red, Test, turn 3 -->" in user_file.read_text(encoding="utf-8")
     assert not knowledge.add("Mirage  F1 tanks limit it to two AIM-9s.")
     assert knowledge.lessons() == ["Mirage F1 tanks limit it to two AIM-9s."]
     assert user_file.read_text(encoding="utf-8").startswith("# Commander knowledge")

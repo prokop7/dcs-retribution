@@ -118,7 +118,9 @@ def assign_missing_tots(coalition: Coalition, now: datetime) -> None:
 
 
 def _debrief_markdown(debrief: dict[str, object]) -> str:
-    return "```json\n" + json.dumps(debrief, ensure_ascii=False, indent=1) + "\n```"
+    from game.claudecommander.debrief import debrief_markdown
+
+    return debrief_markdown(dict(debrief))
 
 
 class _ActiveRun:

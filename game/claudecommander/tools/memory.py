@@ -117,15 +117,19 @@ class RecordLessonArgs(BaseModel):
 
 @commander_tools.register(
     "record_lesson",
-    "Adds a general lesson to the knowledge every commander reads at the start of "
-    "each turn, in every campaign and on both sides: facts about aircraft, "
-    "loadouts, weapons or how the tools behave (for example a loadout's range "
-    "limit). Never record intelligence about the current campaign or the enemy; "
-    "that belongs in your journal.",
+    "Adds a verified fact to the knowledge every commander reads at the start of "
+    "each turn, in every campaign and on both sides: aircraft and loadout limits, "
+    "weapon facts, game rules, how the tools behave. Not for mission outcomes, "
+    "tactical conclusions, or anything about the current campaign or the enemy; "
+    "those belong in your journal.",
     RecordLessonArgs,
 )
 def record_lesson(context: CommanderContext, args: RecordLessonArgs) -> Json:
     from game.claudecommander.coordinator import commander_knowledge
 
-    added = commander_knowledge().add(args.lesson)
+    game = context.game
+    source = (
+        f"{context.player.value}, {game.campaign_name or 'campaign'}, turn {game.turn}"
+    )
+    added = commander_knowledge().add(args.lesson, source)
     return {"recorded": added, "note": None if added else "Already known."}

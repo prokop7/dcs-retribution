@@ -26,6 +26,9 @@ def _lessons(path: Path) -> list[str]:
     lessons: list[str] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
+        if stripped.startswith("<!--"):
+            # Where a lesson came from; for the player, not the commanders.
+            continue
         if stripped.startswith("- "):
             lessons.append(stripped[2:].strip())
         elif lessons and stripped and not stripped.startswith("#"):
@@ -45,8 +48,11 @@ class CommanderKnowledge:
             seen.setdefault(lesson, None)
         return list(seen)
 
-    def add(self, lesson: str) -> bool:
-        """Adds a lesson; returns False if it is already known."""
+    def add(self, lesson: str, source: str | None = None) -> bool:
+        """Adds a lesson; returns False if it is already known.
+
+        ``source`` (side, campaign, turn) is kept as a comment for the player.
+        """
         lesson = " ".join(lesson.split())
         if not lesson or lesson in self.lessons():
             return False
@@ -56,6 +62,8 @@ class CommanderKnowledge:
             if new_file:
                 file.write(USER_HEADER)
             file.write(f"- {lesson}\n")
+            if source:
+                file.write(f"  <!-- {source} -->\n")
         return True
 
     def render(self) -> str:

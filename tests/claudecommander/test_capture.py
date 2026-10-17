@@ -29,7 +29,9 @@ def test_neutral_bases_are_air_assault_targets(game: Game) -> None:
     game.settings.set_plugin_option("ctld", True)
     cp = neutralize_an_enemy_base(game)
     view = CommanderView(game, Player.BLUE)
-    assert view.mission_types_for(cp) == [FlightType.AIR_ASSAULT]
+    types = view.mission_types_for(cp)
+    assert FlightType.AIR_ASSAULT in types and FlightType.ESCORT in types
+    assert FlightType.OCA_RUNWAY not in types and FlightType.STRIKE not in types
 
     caller = Caller(game, Player.BLUE)
     targets = caller.ok("get_mission_targets", {"mission_type": "Air Assault"})

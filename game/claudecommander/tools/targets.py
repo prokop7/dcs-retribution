@@ -113,7 +113,7 @@ def mission_targets(view: CommanderView, args: MissionTargetsArgs) -> Json:
     "get_mission_targets",
     "What your side can plan packages against, and which mission types each target "
     "accepts under the game's rules: enemy bases (OCA, air assault), neutral "
-    "bases (air assault only: they are undefended), enemy ground "
+    "bases (air assault, plus escorts for it: they are undefended), enemy ground "
     "objects (Strike, DEAD/SEAD for air defenses, BAI for armor and motorpools, "
     "Anti-ship for ships), front lines (CAS), and your own bases/objects "
     "(BARCAP, AEW&C, refueling). Mission types valid for every listed target are "

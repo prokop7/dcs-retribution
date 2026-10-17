@@ -8,6 +8,7 @@ crash_events = {} -- killed aircraft will be added via S_EVENT_CRASH event
 dead_events = {} -- killed units will be added via S_EVENT_DEAD event
 unit_lost_events = {} -- killed units will be added via S_EVENT_UNIT_LOST
 kill_events = {} -- killed units will be added via S_EVENT_KILL 
+kill_details = {} -- who killed what, with which weapon, where and when (S_EVENT_KILL)
 base_capture_events = {}
 destroyed_objects_positions = {} -- will be added via S_EVENT_DEAD event
 mission_ended = false
@@ -45,6 +46,7 @@ function write_state()
         ["base_capture_events"] = base_capture_events,
 		["unit_lost_events"] = unit_lost_events,
 		["kill_events"] = kill_events,
+		["kill_details"] = kill_details,
         ["mission_ended"] = mission_ended,
         ["destroyed_objects_positions"] = destroyed_objects_positions,
     }
@@ -166,6 +168,33 @@ write_state_error_handling = function()
     mist.scheduleFunction(write_state_error_handling, {}, timer.getTime() + next_schedule_in_seconds)
 end
 
+-- Describes an S_EVENT_KILL for the debriefing. Every field is read defensively:
+-- the initiator may be a static, scenery or already gone.
+local function kill_detail(event)
+    local detail = { time = timer.getTime() }
+    local target = event.target
+    if target.getName then detail.target = target:getName() end
+    if target.getTypeName then detail.target_type = target:getTypeName() end
+    if target.getPoint then
+        local point = target:getPoint()
+        detail.x = point.x
+        detail.z = point.z
+        detail.alt = point.y
+    end
+    local killer = event.initiator
+    if killer then
+        if killer.getName then detail.killer = killer:getName() end
+        if killer.getTypeName then detail.killer_type = killer:getTypeName() end
+        if killer.getCoalition then detail.killer_coalition = killer:getCoalition() end
+    end
+    if event.weapon_name then
+        detail.weapon = event.weapon_name
+    elseif event.weapon and event.weapon.getTypeName then
+        detail.weapon = event.weapon:getTypeName()
+    end
+    return detail
+end
+
 activeWeapons = {}
 local function onEvent(event)
     if event.id == world.event.S_EVENT_CRASH and event.initiator then
@@ -180,6 +209,10 @@ local function onEvent(event)
 	
 	if event.id == world.event.S_EVENT_KILL and event.target then
         kill_events[#kill_events + 1] = event.target.getName(event.target)
+        local ok, detail = pcall(kill_detail, event)
+        if ok and detail then
+            kill_details[#kill_details + 1] = detail
+        end
         dirty_state = true
     end
 

@@ -993,8 +993,15 @@ class CommanderView:
             seen[task] = None
         if isinstance(target, ControlPoint) and target.captured.is_neutral:
             # Nobody defends or uses a neutral base; the only point in going there
-            # is taking it.
-            return [t for t in seen if t is FlightType.AIR_ASSAULT]
+            # is taking it, with whatever protects the helicopters on the way.
+            allowed = {
+                FlightType.AIR_ASSAULT,
+                FlightType.ESCORT,
+                FlightType.SEAD_ESCORT,
+                FlightType.TARCAP,
+                FlightType.SWEEP,
+            }
+            return [t for t in seen if t in allowed]
         return list(seen)
 
     # Catalogue ------------------------------------------------------------------------

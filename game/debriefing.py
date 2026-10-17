@@ -110,6 +110,56 @@ class SideLossCounts:
 
 
 @dataclass(frozen=True)
+class KillRecord:
+    """Who killed what in the mission, as reported by DCS (S_EVENT_KILL).
+
+    Only present in results from missions generated with kill attribution;
+    every field but the target may be missing.
+    """
+
+    target: str
+    target_type: Optional[str] = None
+    killer: Optional[str] = None
+    killer_type: Optional[str] = None
+    #: DCS coalition id of the killer: 1 red, 2 blue.
+    killer_coalition: Optional[int] = None
+    weapon: Optional[str] = None
+    #: DCS map coordinates of the target when it died (x north, z east), meters.
+    x: Optional[float] = None
+    z: Optional[float] = None
+    alt: Optional[float] = None
+    #: Mission time in seconds.
+    time: Optional[float] = None
+
+    @classmethod
+    def from_json(cls, data: Any) -> Optional[KillRecord]:
+        if not isinstance(data, dict) or not data.get("target"):
+            return None
+
+        def number(key: str) -> Optional[float]:
+            value = data.get(key)
+            return float(value) if isinstance(value, (int, float)) else None
+
+        def text(key: str) -> Optional[str]:
+            value = data.get(key)
+            return str(value) if value not in (None, "") else None
+
+        coalition = data.get("killer_coalition")
+        return cls(
+            target=str(data["target"]),
+            target_type=text("target_type"),
+            killer=text("killer"),
+            killer_type=text("killer_type"),
+            killer_coalition=coalition if isinstance(coalition, int) else None,
+            weapon=text("weapon"),
+            x=number("x"),
+            z=number("z"),
+            alt=number("alt"),
+            time=number("time"),
+        )
+
+
+@dataclass(frozen=True)
 class StateData:
     #: True if the mission ended. If False, the mission exited abnormally.
     mission_ended: bool
@@ -126,6 +176,9 @@ class StateData:
 
     #: Mangled names of bases that were captured during the mission.
     base_capture_events: List[str]
+
+    #: Kill attribution, when the mission recorded it.
+    kill_records: List[KillRecord] = field(default_factory=list)
 
     @classmethod
     def from_json(cls, data: Dict[str, Any], unit_map: UnitMap) -> StateData:
@@ -165,6 +218,11 @@ class StateData:
             killed_ground_units=killed_ground_units,
             destroyed_statics=data.get("destroyed_objects_positions", []),
             base_capture_events=data.get("base_capture_events", []),
+            kill_records=[
+                record
+                for record in map(KillRecord.from_json, data.get("kill_details", []))
+                if record is not None
+            ],
         )
 
 

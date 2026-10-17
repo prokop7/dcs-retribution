@@ -155,3 +155,75 @@ def test_sightings_from_debriefing(test_game: Game) -> None:
             red_flight.departure.name,
         )
     ]
+
+
+def test_losses_are_attributed_to_what_killed_them(test_game: Game) -> None:
+    from types import SimpleNamespace
+
+    from game.claudecommander.debrief import debrief_markdown
+    from game.debriefing import KillRecord
+
+    debriefing, _target, _airfield = _make_debriefing(test_game)
+    blue_flight = _first_flight(test_game, Player.BLUE)
+    red_flight = _first_flight(test_game, Player.RED)
+    blue_cp, red_cp = _front_cps(test_game)
+    units = {
+        "blue-1": FlyingUnit(blue_flight, None),
+        "red-1": FlyingUnit(red_flight, None),
+    }
+    debriefing.unit_map = SimpleNamespace(flight=units.get)  # type: ignore[assignment]
+    debriefing.state_data = SimpleNamespace(  # type: ignore[assignment]
+        kill_records=[
+            KillRecord(
+                target="blue-1",
+                killer="red-1",
+                killer_type="whatever",
+                weapon="R-77",
+                x=red_cp.position.x,
+                z=red_cp.position.y,
+                alt=6000,
+                time=1380,
+            ),
+            KillRecord(target="red-1", killer="blue-1", target_type="MiG-29A"),
+        ]
+    )
+    summary = summarize_debriefing(debriefing, Player.BLUE)
+    attribution = summary["loss_attribution"]
+    assert attribution["losses_by_cause"] == {"enemy aircraft": 1}
+    [loss] = attribution["aircraft_lost"]
+    assert loss["killed_by"] == f"{red_flight.unit_type.variant_id} (aircraft)"
+    assert loss["weapon"] == "R-77"
+    assert red_cp.name in loss["where"]
+    assert loss["minutes_after_start"] == 23
+    assert attribution["kills_by_own_aircraft"] == [
+        {
+            "by": blue_flight.unit_type.variant_id,
+            "killed": red_flight.unit_type.variant_id,
+            "count": 1,
+        }
+    ]
+
+    text = debrief_markdown(summary)
+    assert "{" not in text
+    assert "killed by" in text and "R-77" in text
+
+
+def test_missions_without_attribution_say_so(test_game: Game) -> None:
+    debriefing, _target, _airfield = _make_debriefing(test_game)
+    summary = summarize_debriefing(debriefing, Player.BLUE)
+    attribution = summary["loss_attribution"]
+    assert not attribution["attribution_available"]
+    assert attribution["losses_by_cause"] == {
+        "not attributed (crash, fuel or simulated combat)": 1
+    }
+
+
+def test_kill_records_parse_from_state() -> None:
+    from game.debriefing import KillRecord
+
+    record = KillRecord.from_json(
+        {"target": "a", "killer_type": "MiG-29A", "x": 1, "z": 2, "time": 60.0}
+    )
+    assert record is not None and record.killer_type == "MiG-29A" and record.z == 2
+    assert KillRecord.from_json("just a name") is None
+    assert KillRecord.from_json({"killer": "x"}) is None
