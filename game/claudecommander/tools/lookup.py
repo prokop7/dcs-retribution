@@ -84,8 +84,30 @@ def _loadouts(view: CommanderView, aircraft: AircraftType) -> list[Json]:
         seen.add(loadout.name)
         if restrict:
             loadout = loadout.degrade_for_date(aircraft, game.date, faction)
-        result.append({"name": loadout.name, "weapons": _weapons(loadout)})
+        entry: Json = {"name": loadout.name, "weapons": _weapons(loadout)}
+        if not entry["weapons"]:
+            entry["note"] = "This loadout carries no weapons."
+        unknown = unknown_weapons(loadout)
+        if unknown:
+            entry["unknown_weapons"] = unknown
+            entry["note"] = (
+                "Some weapons come from a different version of the aircraft's "
+                "mod; they may be missing from the pylons in DCS. Prefer another "
+                "loadout."
+            )
+        result.append(entry)
     return result
+
+
+def unknown_weapons(loadout: Loadout) -> list[str]:
+    """CLSIDs of weapons in the loadout that pydcs doesn't define."""
+    return sorted(
+        {
+            w.clsid
+            for w in loadout.pylons.values()
+            if w is not None and not w.known_to_pydcs
+        }
+    )
 
 
 def _default_loadouts(aircraft: AircraftType) -> dict[str, str]:

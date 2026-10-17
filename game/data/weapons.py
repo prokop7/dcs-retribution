@@ -93,7 +93,20 @@ class Weapon:
         return weapon_ids[self.clsid]
 
     @property
+    def known_to_pydcs(self) -> bool:
+        """False for CLSIDs pydcs doesn't define, e.g. from another mod version.
+
+        Weapon data keeps CLSIDs of older mod versions so that old payloads still
+        resolve, but the installed mod may not have them.
+        """
+        return self.clsid == "<CLEAN>" or self.clsid in weapon_ids
+
+    @property
     def name(self) -> str:
+        if not self.known_to_pydcs:
+            # Still name the weapon instead of failing; payloads saved with
+            # another version of a mod reference CLSIDs pydcs doesn't define.
+            return f"{self.weapon_group.name} [{self.clsid}]"
         return self.pydcs_data["name"]
 
     def __setstate__(self, state: dict[str, Any]) -> None:

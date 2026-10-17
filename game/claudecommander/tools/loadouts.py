@@ -113,6 +113,21 @@ def loadout_json(view: CommanderView, flight: Flight) -> Json:
 
 def apply_named_loadout(view: CommanderView, flight: Flight, name: str) -> Json:
     loadout = find_named_loadout(flight.unit_type, name)
+    weapons = [
+        w for w in loadout.pylons.values() if w is not None and w.clsid != "<CLEAN>"
+    ]
+    if not weapons:
+        raise ToolError(
+            f"Loadout {loadout.name!r} of {flight.unit_type.variant_id} carries no "
+            "weapons. Choose another loadout (see lookup_aircraft)."
+        )
+    unknown = sorted({w.clsid for w in weapons if not w.known_to_pydcs})
+    if unknown:
+        raise ToolError(
+            f"Loadout {loadout.name!r} uses weapons from a different version of the "
+            f"aircraft's mod ({', '.join(unknown)}); they may be missing from the "
+            "pylons in DCS. Choose another loadout (see lookup_aircraft)."
+        )
     for member in flight.iter_members():
         member.loadout = loadout.clone()
         member.use_custom_loadout = False

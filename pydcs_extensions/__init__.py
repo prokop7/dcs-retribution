@@ -1,3 +1,7 @@
+from . import payload_loading
+
+payload_loading.install()
+
 from .SWPack import *
 from .a4ec import *
 from .a7e import *

@@ -661,3 +661,60 @@ def test_purpose_and_force_utilization(game: Game) -> None:
     assert situation["force"]["aircraft_tasked"] == 2
     assert "idle_squadrons" not in situation["force"]
     assert situation["mission_window"]["start"]
+
+
+def test_unreadable_payload_file_does_not_hide_later_payloads(
+    test_game: Game, tmp_path: Any
+) -> None:
+    """A payload file pydcs can't read is skipped, not left half loaded."""
+    from dcs.payloads import PayloadDirectories
+    from dcs.unittype import FlyingType
+
+    from pydcs_extensions.payload_loading import _load_payloads
+
+    aircraft = aircraft_named("F-15C Eagle")
+    unit_type = aircraft.dcs_unit_type
+    broken = tmp_path / "broken.lua"
+    broken.write_text(
+        'local unitPayloads = {["name"] = "x", ["unitType"] = "%s", '
+        '["payloads"] = {[1] = {["name"] = "Bad", ["pylons"] = {[CEN] = '
+        '{["CLSID"] = "x", ["num"] = CEN}}, ["tasks"] = {}}}}\nreturn unitPayloads'
+        % unit_type.id
+    )
+    original_dirs = PayloadDirectories.payload_dirs
+    original_payloads = unit_type.payloads
+    original_cache = dict(FlyingType._payload_cache or {})
+    try:
+        unit_type.payloads = None
+        expected = set(_load_payloads(unit_type))
+        assert expected
+
+        PayloadDirectories.payload_dirs = classmethod(  # type: ignore[method-assign, assignment]
+            lambda cls: [tmp_path, *original_dirs()]
+        )
+        FlyingType._payload_cache = {**original_cache, broken: unit_type.id}
+        unit_type.payloads = None
+        payloads = _load_payloads(unit_type)
+        assert "Bad" not in payloads
+        # Nothing from the readable directories is lost.
+        assert set(payloads) == expected
+    finally:
+        PayloadDirectories.payload_dirs = original_dirs  # type: ignore[method-assign]
+        FlyingType._payload_cache = original_cache
+        unit_type.payloads = original_payloads
+
+
+def aircraft_named(name: str) -> Any:
+    from game.dcs.aircrafttype import AircraftType
+
+    return AircraftType.named(name)
+
+
+def test_weapon_name_survives_unknown_clsid() -> None:
+    from game.data.weapons import Weapon
+
+    weapon = Weapon.with_clsid("{SUPERHORNET_PYLON_03_IB_JS_2X_BRU_AGM-154C}")
+    if weapon is None:
+        pytest.skip("Weapon data no longer lists the old Super Hornet CLSID")
+    assert not weapon.known_to_pydcs
+    assert "SUPERHORNET_PYLON_03_IB_JS_2X_BRU_AGM-154C" in weapon.name
