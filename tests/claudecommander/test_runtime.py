@@ -2,7 +2,7 @@ import json
 from datetime import timedelta
 from pathlib import Path
 
-from game.claudecommander.config import ClaudeRunConfig
+from game.claudecommander.config import ClaudeRunConfig, connect_host
 from game.claudecommander.events import (
     InitEvent,
     OtherEvent,
@@ -116,7 +116,12 @@ def test_build_command_locks_down_tools(tmp_path: Path) -> None:
     assert command[command.index("--allowedTools") + 1] == "mcp__retribution"
     assert command[-2:] == ["--resume", "sid"]
     assert SessionArgs("sid", resume=False).to_args() == ["--session-id", "sid"]
-    assert config.mcp_url("Red") == "http://127.0.0.1:16880/mcp/red"
+    # The game server binds to ::1 by default.
+    assert config.mcp_url("Red") == "http://[::1]:16880/mcp/red"
+    assert connect_host("127.0.0.1") == "127.0.0.1"
+    assert connect_host("0.0.0.0") == "127.0.0.1"
+    assert connect_host("::") == "[::1]"
+    assert connect_host("localhost") == "localhost"
 
 
 def test_write_mcp_config(tmp_path: Path) -> None:

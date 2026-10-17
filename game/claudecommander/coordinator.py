@@ -59,6 +59,7 @@ def directive_for(game: Game, player: Player) -> str:
 
 def run_config(game: Game) -> ClaudeRunConfig:
     from game.persistency import server_port
+    from game.server.settings import ServerSettings
 
     settings = game.settings
     return ClaudeRunConfig(
@@ -67,6 +68,7 @@ def run_config(game: Game) -> ClaudeRunConfig:
         effort=settings.claude_commander_effort,
         timeout=timedelta(minutes=settings.claude_commander_timeout_minutes),
         server_port=server_port(),
+        server_host=ServerSettings.get().server_bind_address,
     )
 
 

@@ -33,10 +33,13 @@ def _dispatch(
     # serialized with every other commander call.
     with GAME_LOCK, EventStream.event_context() as events:
         game = GameContext.require()
-        sightings = tuple(game.coalition_for(player).commander.sightings)
-        return commander_dispatcher.handle(
-            payload, lambda: CommanderContext(game, player, events, sightings)
-        )
+
+        def context() -> CommanderContext:
+            # Only built for tool calls; protocol messages never touch the game.
+            sightings = tuple(game.coalition_for(player).commander.sightings)
+            return CommanderContext(game, player, events, sightings)
+
+        return commander_dispatcher.handle(payload, context)
 
 
 @router.post("/{side}", operation_id="commander_mcp", include_in_schema=False)
