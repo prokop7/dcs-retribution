@@ -8,18 +8,12 @@ from game.claudecommander.mcp.tools import NoArguments
 
 @commander_tools.register(
     "get_situation",
-    "Current turn, date and time, weather and your budget.",
+    "Overview of the campaign for your side: turn, date and start time, time of "
+    "day, weather (clouds, fog, wind at surface/6500 ft/26000 ft, QNH, "
+    "temperature), budget and income per turn, victory state, your faction and "
+    "doctrine, the enemy faction, and base/front line counts. Units: nm, ft, kt, "
+    "true degrees; wind direction is where it blows from.",
     read_only=True,
 )
 def get_situation(context: CommanderContext, _args: NoArguments) -> dict[str, Any]:
-    game = context.game
-    coalition = game.coalition_for(context.player)
-    conditions = game.conditions
-    return {
-        "side": context.player.value,
-        "turn": game.turn,
-        "start_time": conditions.start_time.isoformat(),
-        "time_of_day": conditions.time_of_day.value,
-        "budget": round(coalition.budget, 1),
-        "faction": coalition.faction.name,
-    }
+    return context.view().situation()

@@ -3,4 +3,4 @@
 Each module registers its tools on ``commander_tools`` at import time.
 """
 
-from . import situation
+from . import ato, forces, geometry, lookup, situation, targets
