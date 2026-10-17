@@ -1,6 +1,8 @@
 name: AGM-65H
 year: 2002
 fallback: 3xAGM-65D
+kind: standoff_missile
+range_nm: 10
 clsids:
   - "Herc_Ammo_AGM_65H_missiles"   # Ammo AGM-65H*10 [4570lb]
   - "{JAS39_AGM_65H}"   # AGM-65H TV Guided Missile

@@ -2,6 +2,8 @@ name: AGM-78A Standard ARM
 type: ARM
 year: 1968
 fallback: AGM-45A Shrike ARM
+kind: anti_radiation_missile
+range_nm: 30
 clsids:
   - "{AGM_78A}"
   - "{LAU_77_AGM_78A}"

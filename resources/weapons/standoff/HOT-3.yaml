@@ -1,5 +1,7 @@
 name: HOT-3
 year: 1998
+kind: atgm
+range_nm: 2
 clsids:
   - "{HOT3_R1}"   # 1 x HOT-3 - ATGM, SACLOS, HEAT
   - "{HOT3_L1}"   # 1 x HOT-3 - ATGM, SACLOS, HEAT

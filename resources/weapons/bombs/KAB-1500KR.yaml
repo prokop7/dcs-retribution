@@ -1,6 +1,8 @@
 name: KAB-1500KR
 year: 1995
 fallback: FAB-1500 M54
+kind: guided_bomb
+range_nm: 4
 clsids:
   - "{SU30_KAB_1500Kr_LOADOUT}"   # KAB-1500Kr - 1500kg
   - "{KAB_1500Kr_LOADOUT}"   # KAB-1500Kr - 1500kg TV Guided Bomb

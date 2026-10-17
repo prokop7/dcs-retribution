@@ -1,6 +1,7 @@
 name: 2xMk 83
 year: 1955
 fallback: Mk 83
+kind: unguided_bomb
 clsids:
   - "{BRU33_2X_MK-83}"
   - "{18617C93-78E7-4359-A8CE-D754103EDF63}"

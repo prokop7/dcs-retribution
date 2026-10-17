@@ -2,6 +2,8 @@ name: Kh-25ML
 year: 1979
 # The base Kh-25L IOCed in 1974, but does not appear to be in the game
 fallback: S-25L
+kind: standoff_missile
+range_nm: 5
 clsids:
   - "{X-25ML}"
   - "{6DADF342-D4BA-4D8A-B081-BA928C4AF86D}"

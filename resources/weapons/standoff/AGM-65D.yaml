@@ -1,6 +1,8 @@
 name: AGM-65D
 year: 1986
 fallback: AGM-65B
+kind: standoff_missile
+range_nm: 10
 clsids:
   - "Herc_Ammo_AGM_65D_missiles"   # Ammo AGM-65D*10 [4800lb]
   - "{444BA8AE-82A7-4345-842E-76154EFCCA47}"   # AGM-65D - Maverick D (IIR ASM)

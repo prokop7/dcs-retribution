@@ -1,5 +1,7 @@
 name: MAR-1 High Speed Anti-Radiation Missile
 year: 2008
 type: ARM
+kind: anti_radiation_missile
+range_nm: 12
 clsids:
   - "{JAS39_MAR-1}"

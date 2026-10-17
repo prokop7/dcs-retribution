@@ -1,5 +1,7 @@
 name: 2xAGM-154B JSOW
 year: 2030
 fallback: 2xAGM-154A JSOW
+kind: glide_weapon
+range_nm: 60
 clsids:
   - "{BRU57_2*AGM-154B}"

@@ -1,6 +1,7 @@
 name: BLG-66 Belouga
 year: 1979
 fallback: Mk 82
+kind: unguided_bomb
 clsids:
   - "{BLG66_BELOUGA_AC}"   # BLG-66-AC Belouga
   - "{M2KC_RAFAUT_BLG66}"   # AUF2 BLG-66-AC x 2

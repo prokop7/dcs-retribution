@@ -2,6 +2,8 @@ name: GBU-27
 type: LGB
 year: 1987
 fallback: GBU-10
+kind: guided_bomb
+range_nm: 4
 clsids:
   - "{CFT_R_GBU_27_x_2}"   # GBU-27 * 2
   - "{B2_GBU-27*4}"   # B2 GBU-27*4

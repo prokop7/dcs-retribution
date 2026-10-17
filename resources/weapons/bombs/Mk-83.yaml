@@ -1,6 +1,7 @@
 name: Mk 83
 year: 1955
 fallback: 2xMk 82
+kind: unguided_bomb
 clsids:
   - "{BRU-32 MK-83}"   # Mk-83
   - "{BRU42_MK83 RS}"   # Mk-83

@@ -1,6 +1,8 @@
 name: RB-15F
 year: 1989
 fallback: RB-04E
+kind: anti_ship_missile
+range_nm: 40
 clsids:
   - "{Rb15AI}"   # RB-15F (for A.I.) with launcher
   - "{Rb15_HB}"   # Rb-15F Programmable Anti-ship Missile

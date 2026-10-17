@@ -1,5 +1,7 @@
 name: 2xAGM-65A
 year: 1972
+kind: standoff_missile
+range_nm: 8
 clsids:
   - "{HB_F4EAGM-65A_LAU88_2x_Right}"
   - "{HB_F4EAGM-65A_LAU88_2x_Left}"

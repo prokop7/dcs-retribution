@@ -1,4 +1,6 @@
 name: CM-400AKG
 year: 2012
+kind: standoff_missile
+range_nm: 50
 clsids:
   - "DIS_CM-400AKG"   # CM-400AKG

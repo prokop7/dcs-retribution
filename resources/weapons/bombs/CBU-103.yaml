@@ -1,6 +1,8 @@
 name: CBU-103
 year: 2001
 fallback: CBU-87
+kind: guided_bomb
+range_nm: 8
 clsids:
   - "{CFT_L_CBU_103_x_3}"   # CBU-103 * 3
   - "{CFT_R_CBU_103_x_3}"   # CBU-103 * 3

@@ -1,6 +1,8 @@
 name: AGM-114K * 1
 year: 1993
 fallback: 4 x BGM-71D TOW ATGM
+kind: atgm
+range_nm: 4
 clsids:
   - "OH58D_AGM_114_L1"   # 1xAGM-114K
   - "OH58D_AGM_114_R1"   # 1xAGM-114K

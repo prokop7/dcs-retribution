@@ -1,5 +1,7 @@
 name: 16xGBU-38
 year: 2002
 fallback: 8xGBU-31(V)1/B
+kind: guided_bomb
+range_nm: 13
 clsids:
   - "GBU-38*16"

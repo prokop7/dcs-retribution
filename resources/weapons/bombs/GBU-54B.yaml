@@ -1,6 +1,8 @@
 name: GBU-54B
 year: 2012
 fallback: GBU-38
+kind: guided_bomb
+range_nm: 13
 clsids:
   - "{CFT_L_GBU_54_x_3}"   # GBU-54B * 3
   - "{CFT_R_GBU_54_x_3}"   # GBU-54B * 3

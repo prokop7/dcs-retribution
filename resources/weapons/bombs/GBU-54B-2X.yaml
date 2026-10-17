@@ -1,6 +1,8 @@
 name: 2xGBU-54B
 year: 2012
 fallback: 2xGBU-38
+kind: guided_bomb
+range_nm: 13
 clsids:
   - "{BRU-70A_2*GBU-54_RIGHT}"
   - "{BRU-70A_2*GBU-54_LEFT}"

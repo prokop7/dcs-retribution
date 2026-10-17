@@ -1,5 +1,7 @@
 name: Vikhr * 8
 year: 1985
 fallback: Kh-29L
+kind: atgm
+range_nm: 4
 clsids:
   - "{F789E86A-EE2E-4E6B-B81E-D5E5F903B6ED}"

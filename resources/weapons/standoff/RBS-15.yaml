@@ -1,6 +1,8 @@
 name: RBS-15 Mk4
 year: 2017
 fallback: RB-15F
+kind: anti_ship_missile
+range_nm: 80
 clsids:
   - "{CH_RBS15MK4}"   # RBS-15 Mk4
   - "{JAS39_RBS15}"   # RBS-15 Mk4 AShM

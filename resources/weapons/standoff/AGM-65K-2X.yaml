@@ -1,6 +1,8 @@
 name: 2xAGM-65K
 year: 2008
 fallback: AGM-65K
+kind: standoff_missile
+range_nm: 10
 clsids:
   - "{D7670BC7-881B-4094-906C-73879CF7EB27}"
   - "{D7670BC7-881B-4094-906C-73879CF7EB28}"

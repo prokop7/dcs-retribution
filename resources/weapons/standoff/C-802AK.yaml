@@ -1,5 +1,7 @@
 name: C-802AK
 year: 1998
+kind: anti_ship_missile
+range_nm: 65
 clsids:
   - "{C_802AK}"   # C-802AK
   - "DIS_C-802AK"   # C-802AK

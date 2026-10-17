@@ -227,6 +227,35 @@ class WeaponType(Enum):
     UNKNOWN = "unknown"
 
 
+@unique
+class WeaponKind(Enum):
+    """What a weapon is, for reasoning about how far from the target it is released.
+
+    Set per weapon group in resources/weapons (``kind:``). Independent of
+    WeaponType, which drives game logic (ARM, LGB, jammers, ...).
+    """
+
+    CRUISE_MISSILE = "cruise_missile"
+    ANTI_SHIP_MISSILE = "anti_ship_missile"
+    ANTI_RADIATION_MISSILE = "anti_radiation_missile"
+    STANDOFF_MISSILE = "standoff_missile"
+    GLIDE_WEAPON = "glide_weapon"
+    GUIDED_BOMB = "guided_bomb"
+    UNGUIDED_BOMB = "unguided_bomb"
+    ROCKET = "rocket"
+    GUN_POD = "gun_pod"
+    ATGM = "atgm"
+    DECOY = "decoy"
+
+
+#: Release range used when a weapon group gives a kind but no ``range_nm``.
+DEFAULT_RANGE_NM_BY_KIND: dict[WeaponKind, float] = {
+    WeaponKind.UNGUIDED_BOMB: 2.0,
+    WeaponKind.ROCKET: 2.0,
+    WeaponKind.GUN_POD: 1.0,
+}
+
+
 @dataclass(frozen=True)
 class WeaponGroup:
     """Group of "identical" weapons loaded from resources/weapons.
@@ -248,6 +277,16 @@ class WeaponGroup:
     #: The name of the fallback weapon group.
     fallback_name: Optional[str] = field(compare=False)
 
+    #: What the weapon is (cruise missile, guided bomb, ...), if known.
+    kind: Optional[WeaponKind] = field(compare=False, default=None)
+
+    #: Approximate maximum effective release range in nautical miles, if known.
+    #:
+    #: Rough public figures for a release from the weapon's usual altitude, kept
+    #: conservative. Not DCS's own weapon data: the AI decides where it actually
+    #: releases.
+    range_nm: Optional[float] = field(compare=False, default=None)
+
     #: The specific weapons that belong to this weapon group.
     weapons: list[Weapon] = field(init=False, default_factory=list)
 
@@ -265,6 +304,15 @@ class WeaponGroup:
         if self.fallback_name is None:
             return None
         return WeaponGroup.named(self.fallback_name)
+
+    @property
+    def reach_nm(self) -> Optional[float]:
+        """Approximate release range: range_nm, else the default for the kind."""
+        if self.range_nm is not None:
+            return self.range_nm
+        if self.kind is None:
+            return None
+        return DEFAULT_RANGE_NM_BY_KIND.get(self.kind)
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         # Update any existing models with new data on load.
@@ -307,7 +355,16 @@ class WeaponGroup:
             fallback_name = data.get("fallback")
             if fallback_name:
                 links.append((name, fallback_name))
-            group = WeaponGroup(name, weapon_type, year, fallback_name)
+            kind = WeaponKind(data["kind"]) if "kind" in data else None
+            range_nm = data.get("range_nm")
+            group = WeaponGroup(
+                name,
+                weapon_type,
+                year,
+                fallback_name,
+                kind=kind,
+                range_nm=float(range_nm) if range_nm is not None else None,
+            )
 
             target_overrides = data.get("target_overrides", {})
             object.__setattr__(group, "target_overrides", target_overrides)

@@ -1,6 +1,8 @@
 name: GBU-39 SDB
 year: 2006
 fallback: GBU-38
+kind: glide_weapon
+range_nm: 40
 clsids:
   - "{GBU-39}"   # GBU-39
   - "{CH_GBU39}"   # GBU-39 SDB 285 lb Guided Glide-Bomb

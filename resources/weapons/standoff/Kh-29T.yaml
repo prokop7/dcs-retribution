@@ -1,6 +1,8 @@
 name: Kh-29T
 year: 1980
 fallback: Kh-29L
+kind: standoff_missile
+range_nm: 6
 clsids:
   - "Herc_Ammo_KH29T_missiles"   # Ammo Kh-29T*10 [16720lb]
   - "{SU30_KH29TE}"   # KH-29TE (AS-14 Kedge), TV Guided

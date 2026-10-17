@@ -1,4 +1,6 @@
 name: Brimstone
 year: 2005
+kind: atgm
+range_nm: 6
 clsids:
   - "{JAS39_BRIMSTONE}"   # 3 x Brimstone Laser Guided Missile

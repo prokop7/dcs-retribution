@@ -1,5 +1,7 @@
 name: Spike-ER
 year: 2004
+kind: atgm
+range_nm: 4
 clsids:
   - "{SPIKE_ER}"   # SPIKE-ER
   - "{SPIKE_ER2}"   # SPIKE-ER2

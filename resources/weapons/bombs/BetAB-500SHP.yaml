@@ -1,5 +1,6 @@
 name: BetAB-500ShP
 year: 1993
 fallback: FAB-500 M62
+kind: unguided_bomb
 clsids:
   - "{BD289E34-DF84-4C5E-9220-4B14C346E79D}"

@@ -1,6 +1,8 @@
 name: AGM-65B
 year: 1975
 fallback: AGM-65A
+kind: standoff_missile
+range_nm: 8
 clsids:
   - "{RB75B}"   # Rb-75B (AGM-65B Maverick) (TV ASM)
   - "{HB_F4E_AGM-65B_LAU117}"   # AGM-65B - Maverick B (TV Guided) (LAU-117)

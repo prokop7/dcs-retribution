@@ -1,6 +1,7 @@
 name: M117
 year: 1955
 fallback: Mk 82
+kind: unguided_bomb
 clsids:
   - "{SB_F105_TER9A_M117_3}"   # TER M117 F-105
   - "{SB_F105_BRU_41A_M117_6}"   # MER*6 M117 F-105

@@ -1,5 +1,7 @@
 name: KSR-5
 year: 1969
 fallback: KSR-2
+kind: anti_ship_missile
+range_nm: 150
 clsids:
   - "{TU_16_KSR5}"   # KSR-5

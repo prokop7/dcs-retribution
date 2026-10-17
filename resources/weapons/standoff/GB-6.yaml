@@ -1,5 +1,7 @@
 name: GB-6
 year: 2010
+kind: glide_weapon
+range_nm: 25
 clsids:
   - "DIS_GB6"   # GB-6
   - "{GB-6}"   # GB-6

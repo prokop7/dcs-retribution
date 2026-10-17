@@ -1,5 +1,6 @@
 name: Mk 82
 year: 1955
+kind: unguided_bomb
 clsids:
   - "{BRU-32 MK-82}"   # Mk-82
   - "{BRU-42_3*Mk-82LD}"   # 3 Mk-82

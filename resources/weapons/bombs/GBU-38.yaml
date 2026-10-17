@@ -1,6 +1,8 @@
 name: GBU-38
 year: 2002
 fallback: GBU-12
+kind: guided_bomb
+range_nm: 13
 clsids:
   - "{BRU-70A_3*GBU-38}"   # 3 GBU-38
   - "{CFT_L_GBU_38_x_3}"   # GBU-38 * 3

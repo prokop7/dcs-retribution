@@ -1,6 +1,7 @@
 name: CBU-52B
 year: 1970
 fallback: Mk 82
+kind: unguided_bomb
 clsids:
   - "{BRU41A_4_L*CBU52B}"   # BRU-41A - 4 x CBU-52B
   - "{BRU41A_4_R*CBU52B}"   # BRU-41A - 4 x CBU-52B

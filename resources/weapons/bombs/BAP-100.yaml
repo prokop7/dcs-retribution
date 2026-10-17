@@ -1,5 +1,6 @@
 name: BAP-100
 year: 1983
+kind: unguided_bomb
 clsids:
   - "{M2KC_BAP100_6_RACK}"   # BAP-100 x 6
   - "{M2KC_BAP100_12_RACK}"   # BAP-100 x 12

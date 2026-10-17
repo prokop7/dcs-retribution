@@ -1,5 +1,7 @@
 name: YJ-12
 year: 2015
+kind: anti_ship_missile
+range_nm: 130
 clsids:
   - "DIS_DF4B_YJ12"   # YJ-12
   - "{YJ_12}"   # YJ-12

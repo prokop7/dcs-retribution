@@ -1,6 +1,8 @@
 name: Kh-101
 year: 2012
 fallback: Kh-555
+kind: cruise_missile
+range_nm: 1000
 clsids:
   - "{Kh-101}"   # Kh-101
   - "{Tu95MSM_Kh101}"   # Kh-101 ALCM

@@ -1,6 +1,7 @@
 name: BL-755
 year: 1973
 fallback: Mk 82
+kind: unguided_bomb
 clsids:
   - "{HB_F4E_BL755_TER_1x_SingleLeft}"   # 1x BL-755 - 147 Frag/Pen bomblets (TER)
   - "{HB_F4E_BL755_TER_1x_SingleRight}"   # 1x BL-755 - 147 Frag/Pen bomblets (TER)

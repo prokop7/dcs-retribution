@@ -1,5 +1,7 @@
 name: Kh-28
 year: 1973
 fallback: Kh-29L
+kind: anti_radiation_missile
+range_nm: 35
 clsids:
   - "{Kh-28}"

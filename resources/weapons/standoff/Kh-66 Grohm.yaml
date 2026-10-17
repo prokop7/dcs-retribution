@@ -1,5 +1,7 @@
 name: Kh-66 Grohm
 year: 1968
 fallback: S-25OFM
+kind: standoff_missile
+range_nm: 5
 clsids:
   - "{Kh-66_Grom}"

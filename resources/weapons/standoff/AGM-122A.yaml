@@ -5,6 +5,8 @@ type: ARM
 #The AGM-122 Sidearm is a late Cold War era anti-radiation missile of American origin. 
 #The name "Sidearm" refers to the Sidewinder missile and ARM acronym for Anti-Radiation Missile. 
 #The role for the AGM-122 was to engage short range air defense when attack helicopters or close air support aircraft encountered these systems on their mission.
+kind: anti_radiation_missile
+range_nm: 8
 clsids:
   - "{AGM_122}"
   - "{LAU_7_AGM_122_SIDEARM}"

@@ -1,6 +1,8 @@
 name: AGM-65A
 year: 1972
 fallback: AGM-62 Walleye II
+kind: standoff_missile
+range_nm: 8
 clsids:
   - "{RB75}"   # Rb-75A (AGM-65A Maverick) (TV ASM)
   - "{HB_F4E_AGM-65A_LAU117}"   # AGM-65A - Maverick A (TV Guided) (LAU-117)

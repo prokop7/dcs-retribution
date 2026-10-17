@@ -1,5 +1,7 @@
 name: CM-802AKG
 year: 2012
+kind: cruise_missile
+range_nm: 60
 clsids:
   - "{CM_802AKG}"   # CM-802AKG
   - "DIS_CM-802AKG"   # CM802AKG (DIS)

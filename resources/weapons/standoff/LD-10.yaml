@@ -1,5 +1,7 @@
 name: LD-10
 year: 2013
 type: ARM
+kind: anti_radiation_missile
+range_nm: 30
 clsids:
   - "DIS_LD-10"

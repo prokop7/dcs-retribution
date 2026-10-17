@@ -2,6 +2,8 @@ name: GBU-24
 type: LGB
 year: 1986
 fallback: GBU-10
+kind: guided_bomb
+range_nm: 6
 clsids:
   - "{BRU-32 GBU-24}"   # GBU-24
   - "{F111C_GBU24}"   # GBU-24 2000 lb Penetrator TV Guided Bomb

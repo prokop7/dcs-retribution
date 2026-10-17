@@ -1,5 +1,6 @@
 name: 27xMk 82
 year: 1955
 fallback: 12xMk 82
+kind: unguided_bomb
 clsids:
   - "{6C47D097-83FF-4FB2-9496-EAB36DDF0B05}"

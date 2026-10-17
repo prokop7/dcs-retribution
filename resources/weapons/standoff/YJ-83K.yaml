@@ -1,6 +1,8 @@
 name: YJ-83K
 year: 2010
 fallback: C-802AK
+kind: anti_ship_missile
+range_nm: 80
 clsids:
   - "DIS_GDJ_YJ83K"   # YJ-83K
   - "DIS_YJ83K"   # YJ-83K

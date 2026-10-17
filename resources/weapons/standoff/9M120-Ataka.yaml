@@ -1,6 +1,8 @@
 name: 9M120 Ataka
 year: 1996
 fallback: 9M114 Shturm
+kind: atgm
+range_nm: 3
 clsids:
   - "{Ka52_9M120}"   # 9M120
   - "{Ka52_9M120F}"   # 9M120F

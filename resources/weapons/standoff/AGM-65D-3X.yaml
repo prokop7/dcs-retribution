@@ -1,6 +1,8 @@
 name: 3xAGM-65D
 year: 1986
 fallback: 2xAGM-65D
+kind: standoff_missile
+range_nm: 10
 clsids:
   - "{DAC53A2F-79CA-42FF-A77A-F5649B601308}"
   - "{HB_F4EAGM-65D_LAU88_3x_Right}"

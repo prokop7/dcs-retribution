@@ -1,6 +1,7 @@
 name: BLU-107 Durandal
 year: 1977
 fallback: Mk 82
+kind: unguided_bomb
 clsids:
   - "{CFT_L_BLU107_x_3}"   # BLU-107 * 3
   - "{CFT_R_BLU107_x_3}"   # BLU-107 * 3

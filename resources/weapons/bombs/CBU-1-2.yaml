@@ -1,6 +1,7 @@
 name: CBU-1/2 (BLU-3/4)
 year: 1965
 fallback: Mk 82
+kind: unguided_bomb
 clsids:
   - "{HB_F4E_CBU-2A_MER_1x_Left}"   # 1x CBU-2/A x 19x19 (361) BLU-3 Bomblets, HE (MER)
   - "{HB_F4E_CBU-2A_MER_1x_Right}"   # 1x CBU-2/A x 19x19 (361) BLU-3 Bomblets, HE (MER)

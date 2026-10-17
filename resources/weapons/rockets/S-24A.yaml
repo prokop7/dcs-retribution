@@ -1,5 +1,6 @@
 name: S-24A
 year: 1960
 fallback: FAB-500 M62
+kind: rocket
 clsids:
   - "{S-24A}"

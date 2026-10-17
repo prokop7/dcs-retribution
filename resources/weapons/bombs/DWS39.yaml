@@ -1,5 +1,7 @@
 name: DWS39 / BK-90
 year: 1995
+kind: glide_weapon
+range_nm: 3
 clsids:
   - "{DWS39_MJ1}"   # DWS39 MJ1
   - "{DWS39_MJ2}"   # DWS39 MJ2

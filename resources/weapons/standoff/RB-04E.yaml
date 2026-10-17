@@ -1,5 +1,7 @@
 name: RB-04E
 year: 1975
+kind: anti_ship_missile
+range_nm: 15
 clsids:
   - "{Rb_04}"   # RB-04E
   - "{Rb04_HB}"   # Rb-04E Anti-ship Missile

@@ -1,5 +1,7 @@
 name: 2xCBU-103
 year: 2001
 fallback: CBU-103
+kind: guided_bomb
+range_nm: 8
 clsids:
   - "{BRU57_2*CBU-103}"

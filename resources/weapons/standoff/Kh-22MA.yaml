@@ -1,5 +1,7 @@
 name: Kh-22MA
 year: 1975
 fallback: Kh-22 (AS-4 Kitchen)
+kind: anti_ship_missile
+range_nm: 160
 clsids:
   - "{Tu_22_Kh22PSI}"   # Kh-22MA

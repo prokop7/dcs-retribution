@@ -1,5 +1,6 @@
 name: FAB-100
 year: 1946
+kind: unguided_bomb
 clsids:
   - "I16_FAB_100SV"   # FAB-100SV
   - "{FAB-100-4}"   # FAB-100 x 4

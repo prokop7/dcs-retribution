@@ -2,6 +2,8 @@ name: Kh-25MPU
 type: ARM
 year: 1985
 fallback: Kh-25MP
+kind: anti_radiation_missile
+range_nm: 13
 clsids:
   - "{E86C5AA5-6D49-4F00-AD2E-79A62D6DDE26}"
   - "{752AF1D2-EBCC-4bd7-A1E7-2357F5601C70}"

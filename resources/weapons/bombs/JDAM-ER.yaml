@@ -1,5 +1,7 @@
 name: JDAM-ER
 year: 2015
 fallback: GBU-32(V)2/B
+kind: glide_weapon
+range_nm: 35
 clsids:
   - "{MIG29MU2_JDAM-ER}"   # JDAM-ER - 450 kg GPS Guided Mk-83 GP bomb

@@ -2,6 +2,8 @@ name: AGM-45B Shrike ARM (Imp)
 type: ARM
 year: 1972
 fallback: AGM-45A Shrike ARM
+kind: anti_radiation_missile
+range_nm: 12
 clsids:
   - "{3E6B632D-65EB-44D2-9501-1C2D04515405}"
   - "{AGM_45B}"

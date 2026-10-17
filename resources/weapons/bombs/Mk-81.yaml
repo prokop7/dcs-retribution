@@ -1,5 +1,6 @@
 name: Mk 81
 year: 1955
+kind: unguided_bomb
 clsids:
   - "{BRU42_2*MK81 RS}"   # 2 Mk-81
   - "{BRU3242_2*MK81 RS}"   # 2 Mk-81

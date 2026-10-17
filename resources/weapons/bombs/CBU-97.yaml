@@ -1,6 +1,7 @@
 name: CBU-97
 year: 1992
 fallback: CBU-87
+kind: unguided_bomb
 clsids:
   - "{CFT_L_CBU_97_x_3}"   # CBU-97 * 3
   - "{CFT_R_CBU_97_x_3}"   # CBU-97 * 3

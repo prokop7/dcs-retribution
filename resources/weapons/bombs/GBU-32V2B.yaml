@@ -1,6 +1,8 @@
 name: GBU-32(V)2/B
 year: 2002
 fallback: GBU-16
+kind: guided_bomb
+range_nm: 13
 clsids:
   - "{GBU_32_V_2B}"   # GBU-32(V)2/B - JDAM, 1000lb GPS Guided Bomb
   - "{BRU55_2*GBU-32}"   # BRU-55 with 2 x GBU-32(V)2/B - JDAM, 1000lb GPS Guided Bomb

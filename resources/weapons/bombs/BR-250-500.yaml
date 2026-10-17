@@ -1,5 +1,6 @@
 name: BR-250/500
 year: 1970
+kind: unguided_bomb
 clsids:
   - "BR_250"   # BR-250 - 250kg GP Bomb LD
   - "BR_500"   # BR-500 - 500kg GP Bomb LD

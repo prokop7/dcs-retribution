@@ -1,6 +1,7 @@
 name: 2xMk 82
 year: 1955
 fallback: Mk 82
+kind: unguided_bomb
 clsids:
   - "{M2KC_RAFAUT_MK82}"
   - "{BRU33_2X_MK-82}"

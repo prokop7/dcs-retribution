@@ -1,6 +1,8 @@
 name: AGM-65F
 year: 1991
 fallback: 3xAGM-65D
+kind: standoff_missile
+range_nm: 10
 clsids:
   - "LAU_117_AGM_65F"   # LAU-117 with AGM-65F - Maverick F (IIR ASM)
   - "{HB_F4E_AGM-65K_LAU117}"   # AGM-65F - Maverick F (IIR ASM - Lg Whd) (LAU-117)

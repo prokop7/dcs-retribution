@@ -1,5 +1,7 @@
 name: AGM-142 Popeye
 year: 1989
 fallback: GBU-15
+kind: standoff_missile
+range_nm: 40
 clsids:
   - "{F111C_AGM_142_ARM}"   # AGM-142 Popeye

@@ -1,6 +1,7 @@
 name: OFAB-100-120
 year: 1980
 fallback: FAB-100
+kind: unguided_bomb
 clsids:
   - "{OFAB-100-120-TU}"   # OFAB-100-120-TU x 4
   - "{FB3CE165-BF07-4979-887C-92B87F13276B}"   # OFAB-100-120 - 100 kg GP Bomb LD

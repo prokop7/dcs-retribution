@@ -1,4 +1,6 @@
 name: Sea Eagle
 year: 1985
+kind: anti_ship_missile
+range_nm: 50
 clsids:
   - "{1461CD18-429A-42A9-A21F-4C621ECD4573}"   # Sea Eagle - ASM

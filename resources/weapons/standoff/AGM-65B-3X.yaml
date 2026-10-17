@@ -1,5 +1,7 @@
 name: 3xAGM-65B
 year: 1975
+kind: standoff_missile
+range_nm: 8
 clsids:
   - "{HB_F4EAGM-65B_LAU88_3x_Right}"
   - "{HB_F4EAGM-65B_LAU88_3x_Left}"

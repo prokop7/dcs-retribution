@@ -1,6 +1,8 @@
 name: GBU-15
 year: 1983
 fallback: GBU-10
+kind: glide_weapon
+range_nm: 8
 clsids:
   - "{F111C_GBU15_V1B}"   # GBU-15 2000 lb TV Guided Bomb
   - "{GBU-15V1}"   # GBU-15 V1 - 2000 lb TV Guided Bomb

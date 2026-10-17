@@ -1,6 +1,8 @@
 name: AGM-45A Shrike ARM
 year: 1965
 type: ARM
+kind: anti_radiation_missile
+range_nm: 8
 clsids:
   - "{AGM_45A}"
   - "{LAU118_AGM_45A}"

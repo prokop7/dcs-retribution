@@ -1,5 +1,7 @@
 name: AGM-62 Walleye I
 year: 1967
 fallback: AGM-12C
+kind: glide_weapon
+range_nm: 10
 clsids:
   - "{AGM_62_I}"

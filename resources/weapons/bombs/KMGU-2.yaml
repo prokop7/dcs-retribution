@@ -1,6 +1,7 @@
 name: KMGU-2
 year: 1980
 fallback: RBK-250
+kind: unguided_bomb
 clsids:
   - "Herc_Ammo_KMGU296AO25RT_bombs"   # Ammo KMGU-2 - 96 AO-2.5RT*10 [11440lb]
   - "Herc_Ammo_KMGU296AO25KO_bombs"   # Ammo KMGU-2 - 96 PTAB-2.5KO*10 [11440lb]

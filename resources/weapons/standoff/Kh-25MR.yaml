@@ -1,6 +1,8 @@
 name: Kh-25MR
 year: 1974
 fallback: Kh-66 Grohm
+kind: standoff_missile
+range_nm: 5
 clsids:
   - "{292960BB-6518-41AC-BADA-210D65D5073C}"
   - "{X-25MR}"

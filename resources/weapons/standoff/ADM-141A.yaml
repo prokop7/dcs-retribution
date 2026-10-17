@@ -2,6 +2,8 @@ name: ADM-141A TALD
 # https://www.designation-systems.net/dusrm/m-141.html
 year: 1987
 type: DECOY
+kind: decoy
+range_nm: 60
 clsids:
   - "{BRU42_ADM141}"
   - "{BRU3242_ADM141}"

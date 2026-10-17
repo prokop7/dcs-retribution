@@ -1,4 +1,6 @@
 name: AM39 Exocet
 year: 1979
+kind: anti_ship_missile
+range_nm: 35
 clsids:
   - "{AM39}"   # AM39 EXOCET AShM

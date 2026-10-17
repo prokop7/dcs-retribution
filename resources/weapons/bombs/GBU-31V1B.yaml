@@ -1,6 +1,8 @@
 name: GBU-31(V)1/B
 year: 2001
 fallback: GBU-24
+kind: guided_bomb
+range_nm: 13
 clsids:
   - "{CFT_L_GBU_31_x_2}"   # GBU-31(V)1/B * 2
   - "{CFT_R_GBU_31_x_2}"   # GBU-31(V)1/B * 2

@@ -1,6 +1,8 @@
 name: Kh-31A
 year: 1989
 fallback: Kh-29L
+kind: anti_ship_missile
+range_nm: 25
 clsids:
   - "{Ka52_Kh31A}"   # Kh-31A
   - "{SU30_KH_31A}"   # Kh-31A (AS-17 Krypton) - 610kg

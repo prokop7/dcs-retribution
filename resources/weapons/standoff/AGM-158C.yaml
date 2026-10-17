@@ -1,5 +1,7 @@
 name: AGM-158C LRASM
 year: 2018
+kind: anti_ship_missile
+range_nm: 200
 clsids:
   - "{B21_AGM-158C*4}"   # 4 x AGM-158C LRASM AShM
   - "{B21_AGM-158C}"   # AGM-158C LRASM AShM (single)

@@ -1,5 +1,7 @@
 name: 8xAGM-86D
 year: 2001
 fallback: 8xAGM-86C
+kind: cruise_missile
+range_nm: 500
 clsids:
   - "{8DCAF3A3-7FCF-41B8-BB88-58DEDA878EDE}"

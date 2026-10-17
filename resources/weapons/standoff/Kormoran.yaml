@@ -1,4 +1,6 @@
 name: Kormoran
 year: 1977
+kind: anti_ship_missile
+range_nm: 15
 clsids:
   - "{7210496B-7B81-4B52-80D6-8529ECF847CD}"   # Kormoran - ASM

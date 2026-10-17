@@ -1,6 +1,8 @@
 name: KAB-500S
 year: 2007
 fallback: KAB-500LG
+kind: guided_bomb
+range_nm: 4
 clsids:
   - "{SU30_KAB_500S_LOADOUT}"   # KAB-500S - 500kg
   - "{KAB_500S_LOADOUT}"   # KAB-500S - 500kg GPS Guided Bomb

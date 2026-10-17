@@ -1,6 +1,7 @@
 name: RBK-250
 year: 1960
 fallback: FAB-250 M62
+kind: unguided_bomb
 clsids:
   - "{RBK_250_PTAB25M_DUAL_L}"   # 2 x RBK-250 PTAB-2.5M
   - "{RBK_250_PTAB25M_DUAL_R}"   # 2 x RBK-250 PTAB-2.5M

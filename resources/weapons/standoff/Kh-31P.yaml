@@ -2,6 +2,8 @@ name: Kh-31P
 type: ARM
 year: 1988
 fallback: Kh-25MPU
+kind: anti_radiation_missile
+range_nm: 45
 clsids:
   - "{Kh-31_mig31bm}"   # Kh-31P (AS-17 Krypton)
   - "{SU30_KH31P}"   # Kh-31P (AS-17 Krypton) - 600kg

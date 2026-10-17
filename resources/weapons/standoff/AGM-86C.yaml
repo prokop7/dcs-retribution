@@ -1,5 +1,7 @@
 name: AGM-86C
 year: 1988
 fallback: 27xMk 82
+kind: cruise_missile
+range_nm: 500
 clsids:
   - "{AGM_86C}"

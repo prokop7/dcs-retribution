@@ -1,6 +1,8 @@
 name: AGM-154A JSOW
 year: 1998
 fallback: AGM-65G
+kind: glide_weapon
+range_nm: 60
 clsids:
   - "{AGM-154A}"   # AGM-154A - JSOW CEB (CBU-type)
   - "{HSAB_6x_AGM154A_L}"   # HSAB - 6 x AGM-154A - JSOW CEB (CBU-type)

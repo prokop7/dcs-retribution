@@ -1,6 +1,8 @@
 name: AGM-12C
 year: 1965
 fallback: AGM-12B
+kind: standoff_missile
+range_nm: 8
 clsids:
   - "{AGM_12C}"
   - "{AGM_12C_SWA}"

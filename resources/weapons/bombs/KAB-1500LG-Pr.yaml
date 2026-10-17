@@ -1,6 +1,8 @@
 name: KAB-1500LG-Pr
 year: 2000
 fallback: KAB-1500L
+kind: guided_bomb
+range_nm: 4
 clsids:
   - "{SU30_KAB_1500LG_LOADOUT}"   # KAB-1500LG PR - 1500kg
   - "{KAB_1500LG_LOADOUT}"   # KAB-1500LG-Pr - 1500kg Laser Guided Penetrator Bomb

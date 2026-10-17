@@ -1,5 +1,6 @@
 name: 10xCBU-87
 year: 1986
 fallback: 28xMk 82
+kind: unguided_bomb
 clsids:
   - "CBU87*10"

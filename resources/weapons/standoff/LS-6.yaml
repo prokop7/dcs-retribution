@@ -1,5 +1,7 @@
 name: LS-6
 year: 2010
+kind: glide_weapon
+range_nm: 25
 clsids:
   - "DIS_LS_6_100"   # LS-6-100
   - "{LS6_100}"   # LS-6-100

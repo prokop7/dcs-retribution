@@ -1,5 +1,7 @@
 name: ALARM
 year: 1990
 type: ARM
+kind: anti_radiation_missile
+range_nm: 40
 clsids:
   - "{E6747967-B1F0-4C77-977B-AB2E6EB0C102}"

@@ -1,5 +1,7 @@
 name: BrahMos
 year: 2006
+kind: anti_ship_missile
+range_nm: 150
 clsids:
   - "{BRAHMOS_SEAD}"   # BRAHMOS SEAD
   - "{BRAHMOS_S}"   # BRAHMOS A-Ship
