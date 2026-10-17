@@ -26,6 +26,7 @@ from game.ato.flightwaypointtype import FlightWaypointType
 from game.utils import feet
 from game.ato.loadouts import Loadout
 from game.ato.package import Package
+from game.ato.standoff import standoff_summary
 from game.theater import Player
 from qt_ui.windows.mission.flight.waypoints.QFlightWaypointList import (
     QFlightWaypointList,
@@ -88,6 +89,12 @@ class QFlightWaypointTab(QFrame):
 
         rlayout = QVBoxLayout()
         layout.addLayout(rlayout, 0, 1)
+
+        standoff = standoff_summary(self.flight)
+        if standoff is not None:
+            standoff_label = QLabel(f"<small>{standoff}</small>")
+            standoff_label.setWordWrap(True)
+            rlayout.addWidget(standoff_label)
 
         rlayout.addWidget(QLabel("<strong>Altitude :</strong>"))
         rlayout.addWidget(QLabel("<small>Set all en-route waypoints</small>"))

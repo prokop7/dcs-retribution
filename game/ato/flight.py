@@ -50,6 +50,15 @@ F18_TGP_PYLON: int = 4
 class Flight(
     SidcDescribable, RadioFrequencyContainer, TacanContainer, CallsignContainer
 ):
+    #: Opt-in standoff attack (see game/ato/standoff.py): the flight plan moves the
+    #: attack (ingress) point out to a launch point outside the target area.
+    #: Class-level defaults, so flights from older saves load without it.
+    standoff_attack: bool = False
+
+    #: Launch distance from the target for a standoff attack in nautical miles;
+    #: None derives it from the loadout's weapon reach when the plan is built.
+    standoff_launch_distance_nm: Optional[float] = None
+
     def __init__(
         self,
         package: Package,

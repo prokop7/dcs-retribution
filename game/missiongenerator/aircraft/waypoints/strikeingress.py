@@ -16,6 +16,11 @@ class StrikeIngressBuilder(PydcsWaypointBuilder):
     def add_tasks(self, waypoint: MovingPoint) -> None:
         bomber = self.group.units[0].unit_type in [B_17G, Tu_22M3]
         bomber_guided = self.group.units[0].unit_type in [B_1B, B_52H]
+        if self.flight.standoff_attack:
+            # A standoff attack is flown for its missiles and guided weapons, so
+            # every aircraft gets the ASM and guided bomb tasks (by default the
+            # free-fall bombers only get the bombing task).
+            bomber_guided = True
         if bomber_guided or not bomber:
             waypoint.tasks.append(OptFormation.finger_four_open())
             self.add_strike_tasks(waypoint, WeaponType.ASM)

@@ -16,6 +16,7 @@ from .flightplan import FlightPlan
 from .formation import FormationFlightPlan, FormationLayout
 from .ibuilder import IBuilder
 from .planningerror import PlanningError
+from ..standoff import find_launch_point, launch_distance, standoff_applies
 from .waypointbuilder import StrikeTarget, WaypointBuilder
 from .. import FlightType
 from ..flightwaypoint import FlightWaypoint
@@ -217,6 +218,9 @@ class FormationAttackBuilder(IBuilder[FlightPlanT, LayoutT], ABC):
             pos = ingress.position.point_from_heading(hdg, nautical_miles(10).meters)
             lineup = builder.nav(pos, builder.get_combat_altitude)
 
+        if standoff_applies(self.flight):
+            ingress, lineup = self._apply_standoff(join, lineup, ingress)
+
         is_helo = self.flight.is_helo
         ingress_egress_altitude = builder.get_combat_altitude
         use_agl_ingress_egress = is_helo
@@ -248,6 +252,41 @@ class FormationAttackBuilder(IBuilder[FlightPlanT, LayoutT], ABC):
             bullseye=builder.bullseye(),
             custom_waypoints=list(),
         )
+
+    def _apply_standoff(
+        self,
+        join: FlightWaypoint,
+        lineup: Optional[FlightWaypoint],
+        ingress: FlightWaypoint,
+    ) -> tuple[FlightWaypoint, Optional[FlightWaypoint]]:
+        """Moves the ingress point, where the AI gets its attack tasks, out to the
+        standoff launch point on the approach (join -> lineup -> ingress).
+
+        A lineup point the launch point passes is dropped. The launch point is
+        never closer to the target than the planned ingress point (see
+        find_launch_point).
+        """
+        distance = launch_distance(self.flight)
+        if distance is None:
+            # No reach data for the loadout and no explicit distance.
+            return ingress, lineup
+        target = self.package.target
+        path = [join.position]
+        if lineup is not None:
+            path.append(lineup.position)
+        path.append(ingress.position)
+        launch = find_launch_point(path, target.position, distance)
+        ingress.position = launch.position
+        ingress.name = "LAUNCH"
+        ingress.pretty_name = f"LAUNCH on {target.name}"
+        ingress.description = (
+            f"Standoff launch on {target.name}, "
+            f"{launch.distance.nautical_miles:.0f} nm out: release, then turn away"
+        )
+        if lineup is not None and launch.leg == 0:
+            # Launch before the lineup point.
+            lineup = None
+        return ingress, lineup
 
     def _build_refuel(self, builder: WaypointBuilder) -> Optional[FlightWaypoint]:
         refuel: Optional[FlightWaypoint] = None

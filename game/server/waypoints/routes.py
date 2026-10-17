@@ -109,6 +109,9 @@ def update_package_waypoints_if_primary_flight(
         for f in flight.package.flights:
             if f is flight:
                 continue
+            if f.standoff_attack and "INGRESS" in waypoint.waypoint_type.name:
+                # The ingress point of a standoff flight is its own launch point.
+                continue
             for wpt in f.flight_plan.iter_waypoints():
                 if wpt.waypoint_type == waypoint.waypoint_type or (
                     "INGRESS" in wpt.waypoint_type.name
