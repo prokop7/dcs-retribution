@@ -100,6 +100,8 @@ class CommanderCoordinator:
         self.game: Optional[Game] = None
         self.listener: Optional[CommanderListener] = None
         self._runs: dict[Player, _ActiveRun] = {}
+        #: Sides that got a new request while planning; they run again afterwards.
+        self._rerun: set[Player] = set()
 
     @classmethod
     def get(cls) -> CommanderCoordinator:
@@ -156,7 +158,10 @@ class CommanderCoordinator:
         state.needs_planning = True
         with self._lock:
             if game is self.game and self.listener is not None:
-                self._start(player)
+                if player in self._runs:
+                    self._rerun.add(player)
+                else:
+                    self._start(player)
 
     def retry(self, player: Player) -> None:
         with self._lock:
@@ -222,9 +227,9 @@ class CommanderCoordinator:
             kind = (
                 RunKind.TURN if state.planned_turn != game.turn else RunKind.INCREMENTAL
             )
+            # Changes and needs_planning stay in the saved state until the run
+            # succeeds, so a game saved or closed mid-run plans again on load.
             changes = list(state.pending_changes)
-            state.pending_changes.clear()
-            state.needs_planning = False
             brief = RunBrief(
                 kind=kind,
                 turn=game.turn,
@@ -262,6 +267,8 @@ class CommanderCoordinator:
     ) -> None:
         with self._lock:
             self._runs.pop(player, None)
+            rerun = player in self._rerun
+            self._rerun.discard(player)
         with GAME_LOCK:
             coalition = game.coalition_for(player)
             state = coalition.commander
@@ -272,6 +279,10 @@ class CommanderCoordinator:
                     state.planned_turn = game.turn
                     state.pending_debrief = None
                 state.last_error = None
+                state.pending_changes = [
+                    c for c in state.pending_changes if c not in changes
+                ]
+                state.needs_planning = rerun or bool(state.pending_changes)
                 assign_missing_tots(coalition, game.conditions.start_time)
                 if result.final_text.strip():
                     self._runner(game, player).journal.append(
@@ -280,8 +291,7 @@ class CommanderCoordinator:
                         result.final_text,
                     )
             else:
-                # Keep what the commander wasn't told so a retry includes it.
-                state.pending_changes[:0] = changes
+                # The changes are still pending, so a retry includes them.
                 state.needs_planning = True
                 state.last_error = result.error
         logging.info(

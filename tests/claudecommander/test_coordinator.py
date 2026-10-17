@@ -182,6 +182,10 @@ def test_change_during_run_triggers_incremental_run(coordinator: Any) -> None:
 
     coord.request(game, Player.RED, "Weather changed.")
     assert len(runner.messages) == 1  # Still planning; queued.
+    # A save made now must still say that planning is needed.
+    saved = pickle.loads(pickle.dumps(game.coalition_for(Player.RED).commander))
+    assert saved.needs_planning
+    assert saved.pending_changes == ["Weather changed."]
     runner.release.set()
 
     wait_until(lambda: len(listener.finished) == 2)
@@ -199,3 +203,17 @@ def test_commander_state_save_compat() -> None:
     legacy.__setstate__({"session_id": "s0"})
     assert legacy.session_id == "s0"
     assert legacy.pending_changes == [] and legacy.finished_turn == -1
+
+
+def test_success_clears_request(coordinator: Any) -> None:
+    coord, runner = coordinator([ClaudeRunResult(session_id="s1", success=True)])
+    game = make_game()
+    listener = Listener()
+    coord.attach(game, listener)
+    coord.request(game, Player.RED, "Senaki was captured.")
+    assert listener.done.wait(5)
+    wait_until(lambda: not coord.is_planning(Player.RED))
+    state = game.coalition_for(Player.RED).commander
+    assert state.pending_changes == []
+    assert len(runner.messages) == 1
+    assert not game.coalition_for(Player.RED).commander.needs_planning
