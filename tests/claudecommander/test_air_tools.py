@@ -34,6 +34,7 @@ WRITE_TOOLS = {
     "edit_flight_waypoints",
     "set_flight_loadout",
     "set_flight_start_type",
+    "set_standoff_attack",
     "set_front_line_stance",
     "buy_aircraft",
     "cancel_aircraft_order",

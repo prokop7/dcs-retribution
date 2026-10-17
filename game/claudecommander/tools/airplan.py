@@ -16,7 +16,9 @@ from pydantic import BaseModel, Field
 from game.ato.flighttype import FlightType
 from game.ato.flightwaypointtype import FlightWaypointType
 from game.ato.starttype import StartType
+from game.ato.standoff import standoff_applies
 from game.claudecommander.mcp.tools import ToolError
+from game.claudecommander.tools.reach import standoff_facts, standoff_json
 from game.claudecommander.view import (
     CommanderView,
     Json,
@@ -379,6 +381,9 @@ def flight_summary(flight: Flight, include_route: bool = True) -> Json:
         pass
     if plan.is_custom:
         result["custom_flight_plan"] = True
+    standoff = standoff_json(flight)
+    if standoff is not None:
+        result["standoff_attack"] = standoff
     if include_route:
         result["route"] = route_json(flight)
     return result
@@ -412,17 +417,37 @@ def _horizontal_radius(slant_range: float, altitude_m: Optional[float]) -> float
 _NOT_FLOWN = {FlightWaypointType.BULLSEYE, FlightWaypointType.DIVERT}
 
 
+def _skipped_waypoints(flight: Flight) -> set[int]:
+    """ids of waypoints an AI standoff attack doesn't fly to.
+
+    Its target waypoints are only generated for player flights: the AI releases
+    at the launch point and turns for the split point.
+    """
+    if not standoff_applies(flight) or flight.client_count:
+        return set()
+    targets = getattr(flight.flight_plan.layout, "targets", [])
+    return {id(w) for w in targets if w.only_for_player}
+
+
 def flown_legs(flight: Flight) -> list[tuple[int, FlightWaypoint, FlightWaypoint]]:
     """(index of the leg's end waypoint, start, end) for the legs actually flown.
 
-    Legs to or from the bullseye and the divert field are left out.
+    Legs to or from the bullseye and the divert field are left out. Waypoints an
+    AI standoff attack skips (its target waypoints) are passed over: the leg
+    runs from the launch point to the next flown waypoint.
     """
-    waypoints = flight.flight_plan.waypoints
-    return [
-        (index, a, b)
-        for index, (a, b) in enumerate(zip(waypoints, waypoints[1:]), start=1)
-        if a.waypoint_type not in _NOT_FLOWN and b.waypoint_type not in _NOT_FLOWN
+    skipped = _skipped_waypoints(flight)
+    flown = [
+        (index, w)
+        for index, w in enumerate(flight.flight_plan.waypoints)
+        if id(w) not in skipped
     ]
+    legs = []
+    for (_, a), (b_index, b) in zip(flown, flown[1:]):
+        if a.waypoint_type in _NOT_FLOWN or b.waypoint_type in _NOT_FLOWN:
+            continue
+        legs.append((b_index, a, b))
+    return legs
 
 
 def route_threats(view: CommanderView, flight: Flight) -> list[Json]:
@@ -565,6 +590,7 @@ def flight_warnings(view: CommanderView, flight: Flight) -> list[str]:
             f"Flight {flight.id} has {flight.missing_pilots} seats without a pilot; "
             "those aircraft will not fly."
         )
+    warnings.extend(text for _, text in standoff_facts(view, flight))
     return warnings
 
 

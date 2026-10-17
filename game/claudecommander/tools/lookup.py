@@ -11,7 +11,9 @@ from pydantic import BaseModel, Field
 
 from game.ato.loadouts import Loadout
 from game.claudecommander.context import CommanderContext, commander_tools
+from game.ato.standoff import loadout_reach
 from game.claudecommander.mcp.tools import ToolError
+from game.claudecommander.tools.reach import REACH_NOTE, reach_json
 from game.claudecommander.view import CommanderView, Json, to_nm
 from game.dcs.aircrafttype import AircraftType
 from game.dcs.groundunittype import GroundUnitType
@@ -85,6 +87,7 @@ def _loadouts(view: CommanderView, aircraft: AircraftType) -> list[Json]:
         if restrict:
             loadout = loadout.degrade_for_date(aircraft, game.date, faction)
         entry: Json = {"name": loadout.name, "weapons": _weapons(loadout)}
+        entry.update(reach_json(loadout_reach(loadout)))
         if not entry["weapons"]:
             entry["note"] = "This loadout carries no weapons."
         unknown = unknown_weapons(loadout)
@@ -181,6 +184,7 @@ def aircraft_json(view: CommanderView, aircraft: AircraftType, loadouts: bool) -
     if loadouts:
         result["default_loadout_by_task"] = _default_loadouts(aircraft)
         result["loadouts"] = _loadouts(view, aircraft)
+        result["loadout_reach_note"] = REACH_NOTE
         result["loadouts_date_restricted"] = view.game.settings.restrict_weapons_by_date
         if view.game.settings.restrict_weapons_by_date:
             result["loadouts_as_of"] = view.game.date.isoformat()
@@ -281,8 +285,9 @@ def _all_ships() -> list[ShipUnitType]:
     "patrol/cruise/combat altitude and speed, fuel and fuel burn (lb/nm), "
     "built-in pods/jammers, the task weights the game's auto-planner uses, the "
     "default loadout per task and every named loadout with its weapons (degraded "
-    "to the campaign date when weapon date restriction is on). Works for any "
-    "aircraft, including the enemy's.",
+    "to the campaign date when weapon date restriction is on), its approximate "
+    "air-to-ground weapon reach (reach_nm, the weapon giving it) and weapon kinds. "
+    "Works for any aircraft, including the enemy's.",
     LookupAircraftArgs,
     read_only=True,
 )

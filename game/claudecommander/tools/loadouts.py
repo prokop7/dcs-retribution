@@ -10,7 +10,18 @@ from game.ato.loadouts import Loadout
 from game.claudecommander.context import CommanderContext, commander_tools
 from game.claudecommander.domains import Domain, require_domain
 from game.claudecommander.mcp.tools import ToolError
-from game.claudecommander.tools.airplan import editable_flight, list_text
+from game.ato.standoff import standoff_applies
+from game.claudecommander.tools.airplan import (
+    editable_flight,
+    list_text,
+    package_updated,
+    refresh_asap,
+)
+from game.claudecommander.tools.reach import (
+    loadout_reach_json,
+    standoff_facts,
+    standoff_json,
+)
 from game.claudecommander.view import CommanderView, Json
 from game.data.weapons import Pylon, Weapon, WeaponGroup
 from game.dcs.aircrafttype import AircraftType
@@ -208,8 +219,11 @@ class SetLoadoutArgs(BaseModel):
     "Sets the loadout of every aircraft in a flight: a named loadout of the "
     "aircraft (see lookup_aircraft) and/or pylon-by-pylon changes (weapon CLSID or "
     "name, null to empty). Weapons are checked against the pylon and, when weapon "
-    "date restriction is on, the campaign date. Returns the resulting pylons and "
-    "any weapons the mission generator will replace for the campaign date.",
+    "date restriction is on, the campaign date. Returns the resulting pylons, "
+    "any weapons the mission generator will replace for the campaign date, the "
+    "loadout's approximate weapon reach for the flight's task, and facts when the "
+    "target sits inside known threat rings the loadout can't reach out of. A "
+    "standoff attack with a derived launch distance gets a new launch point.",
     SetLoadoutArgs,
 )
 def set_flight_loadout(context: CommanderContext, args: SetLoadoutArgs) -> Json:
@@ -223,8 +237,25 @@ def set_flight_loadout(context: CommanderContext, args: SetLoadoutArgs) -> Json:
         result = apply_named_loadout(view, flight, args.loadout_name)
     if args.pylons:
         result = apply_pylons(view, flight, args.pylons)
+    result.update(loadout_reach_json(view, flight))
+    response: Json = {"flight_id": str(flight.id), "loadout": result}
+    if standoff_applies(flight) and flight.standoff_launch_distance_nm is None:
+        # The launch point follows the loadout's reach.
+        try:
+            flight.recreate_flight_plan()
+        except Exception as ex:
+            raise ToolError(
+                "The loadout was set, but the standoff route could not be rebuilt: "
+                f"{ex}"
+            )
+        refresh_asap(context.game, flight.package)
+        package_updated(context.events, flight.package)
+        response["standoff_attack"] = standoff_json(flight)
     context.events.update_flight(flight)
-    return {"flight_id": str(flight.id), "loadout": result}
+    warnings = [text for _, text in standoff_facts(view, flight)]
+    if warnings:
+        response["warnings"] = warnings
+    return response
 
 
 class LookupWeaponArgs(BaseModel):
@@ -286,7 +317,10 @@ def _carriers(view: CommanderView, group: WeaponGroup) -> list[Json]:
 @commander_tools.register(
     "lookup_weapon",
     "Data on a weapon from the game's weapon database: its group, type (ARM, LGB, "
-    "TGP, ...), introduction year (with your faction's overrides), the fallback "
+    "TGP, ...), kind (cruise_missile, anti_ship_missile, anti_radiation_missile, "
+    "standoff_missile, glide_weapon, guided_bomb, unguided_bomb, rocket, gun_pod, "
+    "atgm, decoy) and approximate release range in nm when known, introduction "
+    "year (with your faction's overrides), the fallback "
     "chain used when weapon date restriction replaces it, its CLSIDs, whether you "
     "may use it on the campaign date, and which of your squadrons' aircraft can "
     "carry it on which pylons.",
@@ -322,6 +356,8 @@ def lookup_weapon(context: CommanderContext, args: LookupWeaponArgs) -> Json:
     result: Json = {
         "group": group.name,
         "type": group.type.value,
+        "kind": group.kind.value if group.kind is not None else None,
+        "range_nm": group.reach_nm,
         "introduced": overrides.get(group.name, group.introduction_year),
         "fallbacks": chain,
         "weapons": [
@@ -330,6 +366,12 @@ def lookup_weapon(context: CommanderContext, args: LookupWeaponArgs) -> Json:
     }
     if len(group.weapons) > 12:
         result["weapons_total"] = len(group.weapons)
+    if group.reach_nm is not None:
+        result["range_note"] = (
+            "Approximate maximum release range (rough public figure, conservative"
+            + ("; default for the kind" if group.range_nm is None else "")
+            + "). The DCS AI decides where it actually releases."
+        )
     if weapon is not None:
         result["matched"] = {"name": weapon_name(weapon), "clsid": weapon.clsid}
         available = weapon.available_on(view.game.date, faction)

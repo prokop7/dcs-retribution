@@ -940,6 +940,10 @@ class CommanderView:
             result["tot"] = _time(plan.tot)
         except Exception:
             pass
+        if flight.standoff_attack:
+            from game.claudecommander.tools.reach import standoff_json
+
+            result["standoff_attack"] = standoff_json(flight)
         if include_waypoints:
             result["waypoints"] = self._waypoints(flight)
         else:

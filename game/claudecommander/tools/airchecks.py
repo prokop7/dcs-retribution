@@ -25,6 +25,7 @@ from game.claudecommander.tools.airplan import (
     route_distance_nm,
     route_threats,
 )
+from game.claudecommander.tools.reach import standoff_facts
 from game.claudecommander.view import CommanderView, Json, PACKAGE_IDS
 
 #: Keeps validate_air_plan compact on very large ATOs.
@@ -177,6 +178,8 @@ def validate(view: CommanderView) -> Json:
                     f"{limit} nm.",
                     package=package_id,
                 )
+            for kind, text in standoff_facts(view, flight):
+                issue(kind, text, package=package_id)
             for pilot in flight.roster.iter_pilots():
                 if pilot is not None:
                     pilots[id(pilot)] += 1
@@ -222,7 +225,10 @@ def validate(view: CommanderView) -> Json:
     "empty or escort-only packages, packages without TOT, several packages against "
     "the same target (with TOTs), flights starting before mission start, missing "
     "pilots, closed runways or lost bases, routes entering known air defense "
-    "ranges in packages without SEAD/DEAD, fuel and range concerns, over-assigned "
+    "ranges in packages without SEAD/DEAD, fuel and range concerns, strike-type "
+    "flights whose loadout can't reach out of known threat rings around their "
+    "target while another named loadout of the aircraft can (and standoff launch "
+    "points inside threat rings or beyond reach), over-assigned "
     "aircraft or pilots, and packages locked by the player. Also reports force "
     "utilization: aircraft owned, tasked, and ready but untasked, with the idle "
     "squadrons. No scoring.",
