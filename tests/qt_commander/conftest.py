@@ -84,6 +84,10 @@ class FakeCoordinator:
 class FakeCoalition:
     commander: CommanderState = field(default_factory=CommanderState)
     ato: SimpleNamespace = field(default_factory=lambda: SimpleNamespace(packages=[]))
+    handed_over: int = 0
+
+    def hand_over_to_claude(self, events: Any) -> None:
+        self.handed_over += 1
 
 
 class FakeGame:

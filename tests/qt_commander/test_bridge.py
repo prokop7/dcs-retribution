@@ -152,6 +152,8 @@ def test_enabling_a_commander_in_settings_takes_command(
     fake_game.settings.claude_commander_red = True
     bridge.apply_settings_change(before)
     assert coordinator.calls[-1] == ("request", Player.RED, TAKE_COMMAND_CHANGE)
+    # The built-in plan of this turn is handed over before the commander runs.
+    assert fake_game.coalitions[Player.RED].handed_over == 1
 
     # Unchanged settings do nothing.
     count = len(coordinator.calls)

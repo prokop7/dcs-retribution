@@ -148,6 +148,17 @@ def run_message(brief: RunBrief) -> str:
                 "campaign. Study the theater, your forces and the enemy, set your "
                 "campaign intent, and plan this turn."
             )
+        elif brief.debrief is None and brief.turn == 1:
+            parts.append(
+                "Turn 1: the campaign starts now. No mission has been flown yet; "
+                "this turn's mission is the first. Purchases from turn 0 have been "
+                "delivered. Plan the opening operation."
+            )
+        elif brief.debrief is None:
+            parts.append(
+                f"Turn {brief.turn} begins. No mission was flown last turn (it was "
+                "skipped), so there is no debrief. Plan this turn."
+            )
         else:
             parts.append(
                 f"Turn {brief.turn} begins. The previous mission has been flown. "

@@ -304,6 +304,7 @@ class CommanderCoordinator:
                     state.planned_turn = game.turn
                     state.pending_debrief = None
                 state.last_error = None
+                coalition.replan_ground_war()
                 state.pending_changes = [
                     c for c in state.pending_changes if c not in changes
                 ]

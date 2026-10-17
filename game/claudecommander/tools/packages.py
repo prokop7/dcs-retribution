@@ -362,6 +362,12 @@ def create_package(context: CommanderContext, args: CreatePackageArgs) -> Json:
     require_domain(context.game, context.player, Domain.AIR_TASKING)
     view = context.view()
     game = context.game
+    if game.turn == 0:
+        raise ToolError(
+            "Turn 0 has no mission: the campaign begins at turn 1, when packages are "
+            "planned. Use this turn for procurement, basing, ground stances and your "
+            "campaign intent."
+        )
     target = view.mission_target(args.target_id)
     tot = parse_tot(game, args)
     package = Package(target, game.db.flights)

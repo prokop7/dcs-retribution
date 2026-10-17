@@ -261,6 +261,47 @@ class Coalition:
             )
         return removed
 
+    def hand_over_to_claude(self, events: GameUpdateEvents) -> None:
+        """Undoes this turn's built-in planning when Claude takes command mid-turn.
+
+        The built-in planner and procurement AI already ran for this turn, so
+        without this the commander would start with their packages in its ATO and
+        their purchases already paid for. Packages the player made are kept, and
+        for OWNFOR only purchases in domains the commander owns (the automated
+        ones) are refunded, so the player's own orders stay.
+        """
+        for package in list(self.ato.packages):
+            if package.player_locked:
+                continue
+            events.delete_flights_in_package(package)
+            self.ato.remove_package(package)
+        self.procurement_requests.clear()
+        settings = self.game.settings
+        if self.player.is_red or settings.automate_front_line_reinforcements:
+            for cp in self.game.theater.control_points_for(self.player):
+                cp.ground_unit_orders.refund_all(self)
+        if self.player.is_red or settings.automate_aircraft_reinforcements:
+            for squadron in self.air_wing.iter_squadrons():
+                squadron.refund_orders()
+        # A full turn run, even if the commander planned this turn before.
+        self.commander.planned_turn = min(
+            self.commander.planned_turn, self.game.turn - 1
+        )
+
+    def replan_ground_war(self) -> None:
+        """Re-plans this side's front line groups for its current stances.
+
+        Turn initialization plans the ground war before the commander runs, so
+        stances the commander sets would otherwise only size the groups next turn.
+        """
+        from game.ground_forces.ai_ground_planner import GroundPlanner
+
+        for cp in self.game.theater.control_points_for(self.player):
+            if cp.has_frontline:
+                planner = GroundPlanner(cp, self.game)
+                planner.plan_groundwar()
+                self.game.ground_planners[cp.id] = planner
+
     def run_builtin_planning(self, events: GameUpdateEvents) -> None:
         """Plans this turn with the built-in planner, for when Claude can't."""
         self.ato.clear()

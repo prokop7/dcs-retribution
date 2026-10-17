@@ -16,6 +16,8 @@ from typing import Optional, Protocol, TYPE_CHECKING
 
 from PySide6.QtCore import QObject, QTimer, Qt, Signal, Slot
 
+from game.server import EventStream
+from game.sim import GameUpdateEvents
 from game.claudecommander.coordinator import CommanderCoordinator, commander_enabled
 from game.claudecommander.events import (
     OtherEvent,
@@ -239,6 +241,10 @@ class CommanderBridge(QObject):
         for player in COMMANDED_SIDES:
             enabled = self.is_enabled(player)
             if enabled and not before.get(player, False):
+                # The built-in planner already planned this turn; undo it first.
+                events = GameUpdateEvents()
+                self._game.coalition_for(player).hand_over_to_claude(events)
+                EventStream.put_nowait(events)
                 self.coordinator.request(self._game, player, TAKE_COMMAND_CHANGE)
             elif not enabled and self.coordinator.is_planning(player):
                 self._silent_cancels.add(player)

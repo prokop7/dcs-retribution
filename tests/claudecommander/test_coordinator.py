@@ -59,8 +59,16 @@ class Listener:
 
 
 def make_game() -> Any:
-    red = SimpleNamespace(commander=CommanderState(), ato=SimpleNamespace(packages=[]))
-    blue = SimpleNamespace(commander=CommanderState(), ato=SimpleNamespace(packages=[]))
+    red = SimpleNamespace(
+        commander=CommanderState(),
+        ato=SimpleNamespace(packages=[]),
+        replan_ground_war=lambda: None,
+    )
+    blue = SimpleNamespace(
+        commander=CommanderState(),
+        ato=SimpleNamespace(packages=[]),
+        replan_ground_war=lambda: None,
+    )
     settings = SimpleNamespace(
         claude_commander_red=True,
         claude_commander_blue=False,
