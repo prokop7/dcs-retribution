@@ -80,6 +80,12 @@ class CreatePackageArgs(TotArgs):
         "of your bases for BARCAP/AEW&C/refueling."
     )
     flights: list[FlightSpec] = Field(min_length=1, max_length=8)
+    purpose: Optional[str] = Field(
+        default=None,
+        max_length=400,
+        description="Why this package exists: what it achieves for your intent, in "
+        "a sentence or two. Shown to the player and kept with the package.",
+    )
 
 
 class AddFlightArgs(FlightSpec):
@@ -359,6 +365,8 @@ def create_package(context: CommanderContext, args: CreatePackageArgs) -> Json:
     target = view.mission_target(args.target_id)
     tot = parse_tot(game, args)
     package = Package(target, game.db.flights)
+    if args.purpose:
+        package.commander_purpose = args.purpose.strip()
     flights, infos = _add_flights(view, package, args.flights)
     if _only_escorts(package):
         _rollback(package, flights)

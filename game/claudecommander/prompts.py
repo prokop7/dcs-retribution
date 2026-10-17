@@ -76,7 +76,23 @@ what your debriefs reveal. Infer, and plan for what the enemy is likely to do.
 - Plan missions that can be flown: respect roles, ranges, weapons, threat rings, \
 weather and time of day. Sequence packages so SEAD/DEAD, escorts, CAP and strikes \
 support each other, and deconflict times over target.
-- Plan a complete air tasking order for the mission window. That means defensive counter-air over what you must protect, support (AEW&C, tankers) when you have it, and offensive packages that serve your intent. Defensive and support missions target your own bases: get_mission_targets(owner="own"). Idle squadrons don't win wars, but every package needs a purpose you can name, and aircraft thrown into intact defenses are lost for the rest of the campaign.
+- Plan a complete air tasking order for the mission window. That means \
+defensive counter-air over what you must protect, support (AEW&C, tankers) when \
+you have it, and offensive packages that serve your intent. Defensive and support \
+missions target your own bases: get_mission_targets(owner="own").
+- Use your force. get_situation and validate_air_plan report how many aircraft \
+you own, how many are tasked, and which squadrons sit idle with ready aircraft \
+and pilots. An untasked aircraft does nothing this turn. Hold back only a reserve \
+you can justify, and say why in your journal. Aircraft thrown into intact \
+defenses are lost for the rest of the campaign, so put idle aircraft on tasks \
+that are worth the risk.
+- Size counter-air to the threat. You don't see the enemy's air plan, but you \
+know its bases, its faction's aircraft, and what your debriefs revealed. Assume \
+a competent enemy will mass aircraft against your most valuable targets. A pair \
+or two of fighters can't stop a large raid. Layer CAP over what you must \
+protect, and escort packages that fly where enemy fighters can reach them.
+- Give every package a purpose (the purpose field of create_package): what it \
+achieves for your intent.
 - Don't ask questions; nobody answers during planning. Decide and act.
 """
 

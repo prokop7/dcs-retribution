@@ -30,6 +30,10 @@ class Package(RadioFrequencyContainer):
     #: unlocked; instances only get their own value once something sets it.
     player_locked: bool = False
 
+    #: Why a Claude commander planned this package, in its own words. Shown to the
+    #: player. Class-level default for the same save compatibility reason as above.
+    commander_purpose: str | None = None
+
     def __init__(
         self,
         target: MissionTarget,

@@ -453,7 +453,57 @@ class CommanderView:
             "front_lines": len(self.front_line_objects()),
             "restrict_weapons_by_date": game.settings.restrict_weapons_by_date,
             "your_domains": owned_domains(game, self.player),
+            "mission_window": self.mission_window(),
+            "force": self.force_utilization(idle_limit=0),
         }
+
+    def mission_window(self) -> Json:
+        """When this turn's mission runs. Both sides fly in the same window."""
+        start = self.game.conditions.start_time
+        duration = self.game.settings.desired_player_mission_duration
+        return {
+            "start": start.strftime("%H:%M"),
+            "planned_duration_min": round(duration.total_seconds() / 60),
+            "end": (start + duration).strftime("%H:%M"),
+        }
+
+    def force_utilization(self, idle_limit: int = 25) -> Json:
+        """How much of the air wing this turn's plan uses. Facts only.
+
+        Ready aircraft are untasked aircraft that also have an untasked pilot.
+        """
+        owned = 0
+        ready = 0
+        idle: list[Json] = []
+        for squadron in self.coalition.air_wing.iter_squadrons():
+            owned += squadron.owned_aircraft
+            squadron_ready = min(
+                squadron.untasked_aircraft, squadron.number_of_available_pilots
+            )
+            ready += squadron_ready
+            if squadron_ready > 0:
+                idle.append(
+                    {
+                        "squadron_id": str(squadron.id),
+                        "squadron": squadron.name,
+                        "aircraft": squadron.aircraft.variant_id,
+                        "base": squadron.location.name,
+                        "primary_task": squadron.primary_task.value,
+                        "ready": squadron_ready,
+                    }
+                )
+        tasked = sum(f.count for p in self.coalition.ato.packages for f in p.flights)
+        result: Json = {
+            "aircraft_owned": owned,
+            "aircraft_tasked": tasked,
+            "aircraft_ready_untasked": ready,
+        }
+        if idle_limit:
+            idle.sort(key=lambda s: -s["ready"])
+            result["idle_squadrons"] = idle[:idle_limit]
+            if len(idle) > idle_limit:
+                result["idle_squadrons_omitted"] = len(idle) - idle_limit
+        return result
 
     # Control points ---------------------------------------------------------------
 
@@ -834,6 +884,8 @@ class CommanderView:
         if package.player_locked:
             # Made or edited by the player: commanders must not change it.
             result["locked"] = True
+        if package.commander_purpose:
+            result["purpose"] = package.commander_purpose
         result["flights"] = [
             self.flight_json(f, include_waypoints) for f in package.flights
         ]

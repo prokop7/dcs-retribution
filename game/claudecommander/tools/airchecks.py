@@ -201,6 +201,7 @@ def validate(view: CommanderView) -> Json:
     result: Json = {
         "packages": len(packages),
         "flights": sum(len(p.flights) for p in packages),
+        "force": view.force_utilization(),
         "issues": issues[:MAX_ISSUES],
     }
     if len(issues) > MAX_ISSUES:
@@ -217,7 +218,9 @@ def validate(view: CommanderView) -> Json:
     "the same target (with TOTs), flights starting before mission start, missing "
     "pilots, closed runways or lost bases, routes entering known air defense "
     "ranges in packages without SEAD/DEAD, fuel and range concerns, over-assigned "
-    "aircraft or pilots, and packages locked by the player. No scoring.",
+    "aircraft or pilots, and packages locked by the player. Also reports force "
+    "utilization: aircraft owned, tasked, and ready but untasked, with the idle "
+    "squadrons. No scoring.",
     NoArguments,
     read_only=True,
 )

@@ -630,3 +630,34 @@ def test_red_can_plan_too(game: Game) -> None:
         },
     )
     assert "No squadron of yours" in text
+
+
+def test_purpose_and_force_utilization(game: Game) -> None:
+    clear_ato(game, Player.BLUE)
+    caller = Caller(game, Player.BLUE)
+    before = caller.ok("validate_air_plan", {})["force"]
+    assert before["aircraft_tasked"] == 0
+    assert before["aircraft_ready_untasked"] > 0
+    assert before["idle_squadrons"]
+
+    base = own_airbase(game, Player.BLUE)
+    created = caller.ok(
+        "create_package",
+        {
+            "target_id": str(base.id),
+            "flights": [{"task": "BARCAP", "count": 2}],
+            "purpose": "Cover the airfield against the morning raid.",
+        },
+    )
+    package_id = created["package"]["id"] if "package" in created else created["id"]
+    ato = caller.ok("get_ato", {"package_id": package_id})
+    assert "Cover the airfield" in json.dumps(ato)
+
+    after = caller.ok("validate_air_plan", {})["force"]
+    assert after["aircraft_tasked"] == 2
+    assert after["aircraft_ready_untasked"] == before["aircraft_ready_untasked"] - 2
+
+    situation = caller.ok("get_situation", {})
+    assert situation["force"]["aircraft_tasked"] == 2
+    assert "idle_squadrons" not in situation["force"]
+    assert situation["mission_window"]["start"]
