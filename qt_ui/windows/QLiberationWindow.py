@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 import qt_ui.uiconstants as CONST
 from game import Game, VERSION, persistency, Migrator
 from game.ato import Flight
+from game.claudecommander.context import GAME_LOCK
 from game.debriefing import Debriefing
 from game.game import TurnState
 from game.layout import LAYOUTS
@@ -29,6 +30,7 @@ from game.server import EventStream, GameContext
 from game.server.dependencies import QtCallbacks, QtContext
 from game.theater import ControlPoint, MissionTarget, TheaterGroundObject
 from game.theater.controlpoint import motorpools_inside_capture_zone
+from game.theater.player import Player
 from qt_ui import liberation_install
 from qt_ui.dialogs import Dialog
 from qt_ui.models import GameModel
@@ -42,6 +44,8 @@ from qt_ui.widgets.map.QLiberationMap import QLiberationMap
 from qt_ui.windows.GameUpdateSignal import GameUpdateSignal
 from qt_ui.windows.QDebriefingWindow import QDebriefingWindow
 from qt_ui.windows.basemenu.QBaseMenu2 import QBaseMenu2
+from qt_ui.windows.commander.bridge import COMMANDED_SIDES, CommanderBridge
+from qt_ui.windows.commander.failuredialog import CommanderFailureHandler
 from qt_ui.windows.groundobject.QGroundObjectMenu import QGroundObjectMenu
 from qt_ui.windows.infos.QInfoPanel import QInfoPanel
 from qt_ui.windows.logs.QLogsWindow import QLogsWindow
@@ -70,9 +74,9 @@ class QLiberationWindow(QMainWindow):
         self.sim_controller.sim_update.connect(EventStream.put_nowait)
         self.game_model = GameModel(game, self.sim_controller)
         GameContext.set_model(self.game_model)
-        self.new_package_signal.connect(
-            lambda target: Dialog.open_new_package_dialog(target, self)
-        )
+        self.commander_bridge = CommanderBridge(parent=self)
+        self.commander_failures = CommanderFailureHandler(self.commander_bridge, self)
+        self.new_package_signal.connect(self.open_new_package_dialog)
         self.tgo_info_signal.connect(self.open_tgo_info_dialog)
         self.control_point_info_signal.connect(self.open_control_point_info_dialog)
         self.select_flight_signal.connect(self.on_select_flight)
@@ -86,6 +90,11 @@ class QLiberationWindow(QMainWindow):
         )
         Dialog.set_game(self.game_model)
         self.ato_panel = QAirTaskingOrderPanel(self.game_model)
+        self.commander_bridge.state_changed.connect(self.on_commander_state_changed)
+        self.commander_bridge.live_refresh_requested.connect(
+            self.on_commander_live_refresh
+        )
+        self.commander_bridge.refresh_requested.connect(self.on_commander_refresh)
         self.info_panel = QInfoPanel(self.game)
         self.liberation_map = QLiberationMap(
             self.game_model, ui_flags.dev_ui_webserver, self
@@ -137,7 +146,9 @@ class QLiberationWindow(QMainWindow):
         hbox.setSizes([1, 10000000])
         vbox.setSizes([600, 100])
 
-        self.top_panel = QTopPanel(self.game_model, self.sim_controller, ui_flags)
+        self.top_panel = QTopPanel(
+            self.game_model, self.sim_controller, ui_flags, self.commander_bridge
+        )
         vbox = QVBoxLayout()
         vbox.setContentsMargins(0, 0, 0, 0)
         vbox.addWidget(self.top_panel)
@@ -497,6 +508,7 @@ class QLiberationWindow(QMainWindow):
             self.sim_controller.set_game(game)
             self.game_model.set(self.game)
             self.game_model.init_comms_registry()
+            self.attach_commanders(game)
         except AttributeError:
             logging.exception("Incompatible save game")
             QMessageBox.critical(
@@ -616,8 +628,59 @@ class QLiberationWindow(QMainWindow):
         self.subwindow.show()
 
     def showSettingsDialog(self) -> None:
+        enabled_before = self.commander_bridge.enabled_sides()
         self.dialog = QSettingsWindow(self.game)
+        self.dialog.finished.connect(
+            lambda _result: self.commander_bridge.apply_settings_change(enabled_before)
+        )
         self.dialog.show()
+
+    def attach_commanders(self, game: Optional[Game]) -> None:
+        """Binds the Claude commanders to the game shown in the UI.
+
+        Starts planning that is pending in the loaded game, and cancels the runs of
+        the previous game.
+        """
+        try:
+            self.commander_bridge.set_game(game)
+        except Exception:
+            logging.exception("Could not start the Claude commanders")
+            QMessageBox.warning(
+                self,
+                "Claude Commander",
+                "The Claude commanders could not be started. See the log for "
+                "details.",
+            )
+
+    def on_commander_state_changed(self) -> None:
+        self.ato_panel.set_locked_sides(
+            {p for p in COMMANDED_SIDES if self.commander_bridge.is_planning(p)}
+        )
+
+    def on_commander_live_refresh(self, player: Player) -> None:
+        """Shows packages a planning commander has added so far."""
+        if self.game is None:
+            return
+        with GAME_LOCK:
+            self.game_model.ato_model_for(player).replace_from_game(
+                player=player.is_blue
+            )
+        GameUpdateSignal.get_instance().updateBudget(self.game)
+
+    def on_commander_refresh(self) -> None:
+        if self.game is not None:
+            GameUpdateSignal.get_instance().updateGame(self.game)
+
+    def open_new_package_dialog(self, target: MissionTarget) -> None:
+        if self.ato_panel.editing_locked:
+            QMessageBox.information(
+                self,
+                "Commander is planning",
+                "The Claude commander is planning this ATO. You can add packages "
+                "once it has finished.",
+            )
+            return
+        Dialog.open_new_package_dialog(target, self)
 
     def showStatsDialog(self):
         self.dialog = QStatsWindow(self.game)
@@ -676,6 +739,9 @@ class QLiberationWindow(QMainWindow):
         if result in [QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No]:
             if result == QMessageBox.StandardButton.Yes:
                 self.saveGame()
+            # Stop running commanders so no Claude processes outlive the app.
+            self.commander_failures.close_all()
+            self.commander_bridge.detach()
             self._save_window_geometry()
             super().closeEvent(event)
             self.dialog = None

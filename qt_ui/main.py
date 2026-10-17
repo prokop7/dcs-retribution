@@ -18,6 +18,7 @@ from dcs.payloads import PayloadDirectories
 from game import Game, VERSION, logging_config, persistency
 from game.ato import FlightType
 from game.campaignloader.campaign import Campaign, DEFAULT_BUDGET
+from game.claudecommander.coordinator import CommanderCoordinator
 from game.data.weapons import Pylon, Weapon, WeaponGroup
 from game.dcs.aircrafttype import AircraftType
 from game.factions import FACTIONS
@@ -157,6 +158,10 @@ def run_ui(game: Optional[Game], ui_flags: UiFlags) -> None:
     window.showMaximized()
     splash.finish(window)
     qt_execution_code = app.exec()
+
+    # The window detaches the commanders when it closes. Make sure no Claude
+    # process outlives the app even if it quit some other way.
+    CommanderCoordinator.get().detach()
 
     # Restore Mission Scripting file
     logging.info("QT App terminated with status code : " + str(qt_execution_code))
