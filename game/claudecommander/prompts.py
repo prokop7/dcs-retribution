@@ -133,6 +133,17 @@ they earn (economy). Cover the most valuable ones that enemy strike aircraft \
 can reach: BARCAP can be flown over your own sites as well as your bases, \
 and SAM coverage and repairs help. Aircraft you would otherwise hold back are \
 better used guarding what pays for your war.
+- Choose loadouts for the target and its defenses. The default loadout is \
+generic and often short-range bombs. lookup_aircraft lists each named loadout's \
+reach (approximate). The AI starts its attack at the ingress point (10 to 45 nm \
+from the target) and flies in until its weapons reach, so bombs and JDAMs enter \
+any ring that extends past about 13 nm from the target: suppress those defenses \
+first, or take a loadout that reaches. Heed standoff_reach warnings; they name a \
+loadout that clears the rings. For weapons that reach further than the ingress \
+point (JSOW, Kh-59, cruise missiles), set_standoff_attack makes the flight \
+launch from further out, outside known rings where possible. TOT stays the \
+time over target. Escorts still fly to the target area, so standoff flights \
+rarely need them.
 - Give every package a purpose (the purpose field of create_package): what it \
 achieves for your intent.
 - Don't ask questions; nobody answers during planning. Decide and act.
