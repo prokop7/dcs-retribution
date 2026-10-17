@@ -16,7 +16,6 @@ from pydantic import BaseModel, Field
 from game.ato.flighttype import FlightType
 from game.ato.flightwaypointtype import FlightWaypointType
 from game.ato.starttype import StartType
-from game.ato.traveltime import TotEstimator
 from game.claudecommander.mcp.tools import ToolError
 from game.claudecommander.view import (
     CommanderView,
@@ -142,7 +141,9 @@ class TotArgs(BaseModel):
     minutes_after_start: Optional[float] = Field(
         default=None,
         ge=0,
-        description="Time over target as minutes after mission start.",
+        description="Time over target as minutes after mission start. Flights "
+        "that would take off before mission start are spawned in the air where "
+        "their plan puts them, so early TOTs are fine for distant targets.",
     )
     asap: Optional[bool] = Field(
         default=None,
@@ -227,29 +228,64 @@ def refresh_asap(game: Game, package: Package) -> None:
         package.set_tot_asap(mission_start(game))
 
 
-def timing_warnings(game: Game, package: Package) -> list[str]:
+def state_at_mission_start(game: Game, flight: Flight) -> str | None:
+    """Where a flight will be when the mission starts, if that is notable.
+
+    Uses the same catch-up as the simulation: a flight that should already be under
+    way is spawned where its plan puts it. Returns None for flights that simply
+    start after mission start.
+    """
+    from game.ato.flightstate import Completed, InFlight, Uninitialized
+    from game.sim import GameUpdateEvents
+    from game.sim.aircraftsimulation import settle_initial_state
+
     start = mission_start(game)
-    warnings = []
-    late = []
+    original = flight.state
+    try:
+        flight.set_state(Uninitialized(flight, game.settings))
+        settle_initial_state(flight, start, GameUpdateEvents())
+        state = flight.state
+        if isinstance(state, Completed):
+            return (
+                "would already have landed before mission start and is dropped "
+                "from the mission; choose a later TOT"
+            )
+        if isinstance(state, InFlight):
+            position = state.estimate_position()
+            from_base = meters(position.distance_to_point(flight.departure.position))
+            players = (
+                "; it has player pilots, who will also spawn in the air"
+                if flight.client_count
+                else ""
+            )
+            return (
+                f"airborne at mission start, about {from_base.nautical_miles:.0f} nm "
+                f"from {flight.departure.name}, flying to "
+                f"{state.next_waypoint.pretty_name or state.next_waypoint.name}"
+                f"{players}"
+            )
+        if state.is_waiting_for_start:
+            return None
+        return f"already starting up or taxiing at {flight.departure.name} at mission start"
+    except Exception:
+        return None
+    finally:
+        flight.set_state(original)
+
+
+def timing_warnings(game: Game, package: Package) -> list[str]:
+    """Notes on flights that are already under way or finished at mission start."""
+    notes = []
     for flight in package.flights:
-        try:
-            startup = flight.flight_plan.startup_time()
-        except Exception:
-            continue
-        if startup < start and flight.start_type is not StartType.IN_FLIGHT:
-            late.append(f"{flight_label(flight)} (startup {hms(startup)})")
-    if late:
-        try:
-            earliest = hms(TotEstimator(package).earliest_tot(start))
-        except Exception:
-            earliest = None
-        warnings.append(
-            f"Mission starts at {start:%H:%M:%S}, but these flights would have to "
-            f"start up before that: {'; '.join(late)}. They will spawn already "
-            f"en route. Earliest TOT with every flight starting at mission start: "
-            f"{earliest}."
-        )
-    return warnings
+        where = state_at_mission_start(game, flight)
+        if where is not None:
+            notes.append(f"{flight_label(flight)}: {where}.")
+    if not notes:
+        return []
+    return [
+        "Flights that should already be under way at mission start spawn where "
+        "their plan puts them: " + " ".join(notes)
+    ]
 
 
 # Descriptions -----------------------------------------------------------------------

@@ -20,6 +20,7 @@ from game.claudecommander.tools.airplan import (
     hms,
     mission_start,
     package_label,
+    state_at_mission_start,
     range_facts,
     route_distance_nm,
     route_threats,
@@ -111,12 +112,16 @@ def validate(view: CommanderView) -> Json:
             name = flight_label(flight)
             plan = flight.flight_plan
             try:
-                startup = plan.startup_time()
-                if startup < start and flight.start_type is not StartType.IN_FLIGHT:
+                plan.startup_time()
+                where = state_at_mission_start(game, flight)
+                if where is not None:
                     issue(
-                        "starts_before_mission",
-                        f"Flight {name} starts up at {hms(startup)}, before mission "
-                        f"start {start:%H:%M:%S}; it will spawn en route.",
+                        (
+                            "landed_before_mission"
+                            if "dropped" in where
+                            else "under_way_at_start"
+                        ),
+                        f"Flight {name}: {where}.",
                         package=package_id,
                     )
             except Exception as ex:

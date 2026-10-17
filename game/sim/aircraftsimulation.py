@@ -18,6 +18,32 @@ if TYPE_CHECKING:
     from .gameupdateevents import GameUpdateEvents
 
 
+#: Enough for startup -> taxi -> takeoff -> navigating, with margin.
+_MAX_SETTLE_STEPS = 8
+
+
+def settle_initial_state(
+    flight: Flight, now: datetime, events: GameUpdateEvents
+) -> None:
+    """Puts a flight where its plan says it is at ``now``.
+
+    A flight whose startup time is before ``now`` starts in StartUp, Taxi or Takeoff
+    as of its own startup time. Ticking it with zero duration lets each phase end at
+    its own completion time and roll the overrun into the next, so a flight that
+    should have taken off before mission start ends up navigating at its planned
+    position (and is spawned in the air there) whatever the fast forward setting.
+    Combat is not evaluated during this catch-up.
+    """
+    flight.state.reinitialize(now)
+    for _ in range(_MAX_SETTLE_STEPS):
+        state = flight.state
+        if state.is_waiting_for_start:
+            return
+        state.on_game_tick(events, now, timedelta())
+        if flight.state is state:
+            return
+
+
 class AircraftSimulation:
     def __init__(self, game: Game) -> None:
         self.game = game
@@ -89,9 +115,12 @@ class AircraftSimulation:
             events.complete_simulation()
 
     def set_initial_flight_states(self) -> None:
+        from .gameupdateevents import GameUpdateEvents
+
         now = self.game.conditions.start_time
+        events = GameUpdateEvents()
         for flight in self.iter_flights():
-            flight.state.reinitialize(now)
+            settle_initial_state(flight, now, events)
 
     def reset(self) -> None:
         for flight in self.iter_flights():

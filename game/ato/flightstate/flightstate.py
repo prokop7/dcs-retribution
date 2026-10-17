@@ -26,13 +26,21 @@ class FlightState(ABC):
 
         start_time = self.flight.flight_plan.startup_time()
         if start_time <= now:
-            self._set_active_flight_state(start_time)
+            self._set_active_flight_state(start_time, now)
         else:
             self.flight.set_state(
                 WaitingForStart(self.flight, self.settings, start_time)
             )
 
-    def _set_active_flight_state(self, now: datetime) -> None:
+    def _set_active_flight_state(
+        self, now: datetime, current_time: Optional[datetime] = None
+    ) -> None:
+        """Puts a flight whose startup time has passed into its first active state.
+
+        ``now`` is when the flight started up; ``current_time`` is the actual time,
+        which is later when the flight should already be under way at mission start.
+        An air-started flight then has been flying since its takeoff time.
+        """
         from game.ato.flightstate import StartUp
         from game.ato.flightstate import Taxi
         from game.ato.flightstate import Takeoff
@@ -46,8 +54,17 @@ class FlightState(ABC):
             case StartType.RUNWAY:
                 self.flight.set_state(Takeoff(self.flight, self.settings, now))
             case StartType.IN_FLIGHT:
+                elapsed = timedelta()
+                if current_time is not None:
+                    takeoff = self.flight.flight_plan.takeoff_time()
+                    elapsed = max(timedelta(), current_time - takeoff)
                 self.flight.set_state(
-                    Navigating(self.flight, self.settings, waypoint_index=0)
+                    Navigating(
+                        self.flight,
+                        self.settings,
+                        waypoint_index=0,
+                        elapsed_time=elapsed,
+                    )
                 )
             case _:
                 raise ValueError(
