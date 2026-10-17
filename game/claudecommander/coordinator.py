@@ -18,6 +18,7 @@ from typing import Optional, Protocol, TYPE_CHECKING
 from game.claudecommander.config import ClaudeRunConfig
 from game.claudecommander.context import GAME_LOCK
 from game.claudecommander.events import OtherEvent, StreamEvent
+from game.claudecommander.journal import CommanderJournal
 from game.claudecommander.planning import PlanningJob, PlanningStatus, SideRun
 from game.claudecommander.process import ClaudeRunResult
 from game.claudecommander.prompts import RunBrief, RunKind, system_prompt
@@ -66,6 +67,26 @@ def run_config(game: Game) -> ClaudeRunConfig:
         effort=settings.claude_commander_effort,
         timeout=timedelta(minutes=settings.claude_commander_timeout_minutes),
         server_port=server_port(),
+    )
+
+
+def commander_paths(game: Game, player: Player) -> CommanderPaths:
+    """The work folder of a side's commander in this campaign."""
+    from game.persistency import commander_dir
+
+    return CommanderPaths.for_side(commander_dir(), game.campaign_id, player)
+
+
+def journal_heading(game: Game, player: Player) -> str:
+    return (
+        f"{player.value} commander journal — "
+        f"{game.campaign_name or 'campaign'} ({game.campaign_id})"
+    )
+
+
+def commander_journal(game: Game, player: Player) -> CommanderJournal:
+    return CommanderJournal(
+        commander_paths(game, player).journal, journal_heading(game, player)
     )
 
 
@@ -203,15 +224,12 @@ class CommanderCoordinator:
     # Running.
 
     def _runner(self, game: Game, player: Player) -> CommanderRunner:
-        from game.persistency import commander_dir
-
-        paths = CommanderPaths.for_side(commander_dir(), game.campaign_id, player)
-        heading = (
-            f"{player.value} commander journal — "
-            f"{game.campaign_name or 'campaign'} ({game.campaign_id})"
-        )
         return CommanderRunner(
-            player, paths, run_config(game), system_prompt(player.value), heading
+            player,
+            commander_paths(game, player),
+            run_config(game),
+            system_prompt(player.value),
+            journal_heading(game, player),
         )
 
     def _start(self, player: Player) -> None:
