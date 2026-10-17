@@ -492,9 +492,9 @@ class Game:
 
         # Plan Coalition specific turn
         if for_blue:
-            self.blue.initialize_turn(self.turn == 0 and squadrons_start_full)
+            self.blue.initialize_turn(self.turn == 0 and squadrons_start_full, events)
         if for_red:
-            self.red.initialize_turn(self.turn == 0 and squadrons_start_full)
+            self.red.initialize_turn(self.turn == 0 and squadrons_start_full, events)
 
         # Plan GroundWar
         self.ground_planners = {}
@@ -668,6 +668,27 @@ class Game:
 
     def get_destroyed_units(self) -> list[dict[str, Union[float, str]]]:
         return self.__destroyed_units
+
+    def remove_destroyed_units_near(self, position: Point, radius: Distance) -> None:
+        """Drops the carcasses lying within radius of position.
+
+        Used when a unit is repaired so that it isn't spawned on top of its own wreck.
+        Entries with missing or garbled coordinates can't be matched and are kept.
+        """
+        kept: list[dict[str, Union[float, str]]] = []
+        for d in self.__destroyed_units:
+            try:
+                x = float(cast(float, d["x"]))
+                z = float(cast(float, d["z"]))
+            except (KeyError, TypeError, ValueError):
+                kept.append(d)
+                continue
+            # The y coordinate of a pydcs Point is the DCS z axis.
+            distance = math.hypot(x - position.x, z - position.y)
+            # Written so that NaN distances keep the entry.
+            if not distance < radius.meters:
+                kept.append(d)
+        self.__destroyed_units = kept
 
     def _dedup_destroyed_units(self) -> None:
         # Heal saves written before the insert-path dedup existed: collapse

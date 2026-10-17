@@ -43,6 +43,8 @@ from game.campaignloader.campaignairwingconfig import (
 from game.coalition import Coalition
 from game.dcs.aircrafttype import AircraftType
 from game.persistency import airwing_dir
+from game.server import EventStream
+from game.sim import GameUpdateEvents
 from game.squadrons import AirWing, Pilot, Squadron
 from game.squadrons.squadrondef import SquadronDef
 from game.theater import ControlPoint, ParkingType, Airfield
@@ -911,7 +913,9 @@ class AirWingConfigurationDialog(QDialog):
         c.configure_default_air_wing(config)
         w.revert()
         if c.game.turn != 0:
-            c.initialize_turn(False)
+            events = GameUpdateEvents()
+            c.initialize_turn(False, events)
+            EventStream.put_nowait(events)
 
     def revert(self) -> None:
         for tab in self.tabs:
@@ -921,7 +925,9 @@ class AirWingConfigurationDialog(QDialog):
         for tab in self.tabs:
             tab.apply()
             if tab.coalition.game.turn != 0:
-                tab.coalition.initialize_turn(False)
+                events = GameUpdateEvents()
+                tab.coalition.initialize_turn(False, events)
+                EventStream.put_nowait(events)
         super().accept()
 
     def reject(self) -> None:

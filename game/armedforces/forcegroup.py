@@ -11,6 +11,7 @@ from dcs.unittype import ShipType, StaticType, UnitType as DcsUnitType, VehicleT
 
 from game import persistency
 from game.data.groups import GroupTask
+from game.data.units import UnitClass
 from game.dcs.groundunittype import GroundUnitType
 from game.dcs.helpers import static_type_from_name
 from game.dcs.shipunittype import ShipUnitType
@@ -209,6 +210,25 @@ class ForceGroup:
             layout, name, location, control_point, game, task
         )
 
+    @staticmethod
+    def required_unit_classes_for_layout(layout: TgoLayout) -> set[UnitClass]:
+        """Unit classes of the layout's non-optional unit groups.
+
+        Used by automated SAM repairs to tell which units a site needs to work.
+        """
+        required_classes: set[UnitClass] = set()
+        for unit_group in layout.all_unit_groups:
+            if unit_group.optional:
+                continue
+            required_classes.update(unit_group.unit_classes)
+            for unit_type in unit_group.unit_types:
+                if not issubclass(unit_type, VehicleType):
+                    continue
+                ground_unit_type = next(GroundUnitType.for_dcs_type(unit_type), None)
+                if ground_unit_type is not None:
+                    required_classes.add(ground_unit_type.unit_class)
+        return required_classes
+
     def create_ground_object_for_layout(
         self,
         layout: TgoLayout,
@@ -220,17 +240,7 @@ class ForceGroup:
     ) -> TheaterGroundObject:
         """Create a TheaterGroundObject for the given template"""
         go = layout.create_ground_object(name, location, control_point, task)
-        required_classes = set()
-        for unit_group in layout.all_unit_groups:
-            if unit_group.optional:
-                continue
-            required_classes.update(unit_group.unit_classes)
-            for unit_type in unit_group.unit_types:
-                if issubclass(unit_type, VehicleType):
-                    required_classes.add(
-                        next(GroundUnitType.for_dcs_type(unit_type)).unit_class
-                    )
-        go.required_unit_classes = required_classes
+        go.required_unit_classes = self.required_unit_classes_for_layout(layout)
         # Generate all groups using the randomization if it defined
         for tgo_group in layout.groups:
             for unit_group in tgo_group.unit_groups:

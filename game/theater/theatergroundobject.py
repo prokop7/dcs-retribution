@@ -91,6 +91,9 @@ class TheaterGroundObject(MissionTarget, SidcDescribable, ABC):
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         state["_threat_poly"] = None
+        # Added with ground object repairs. Older saves have no record of the layout's
+        # required classes, so repairs fall back to the generic critical unit types.
+        state.setdefault("required_unit_classes", set())
         self.__dict__.update(state)
 
     @property

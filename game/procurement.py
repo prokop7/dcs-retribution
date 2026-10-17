@@ -3,15 +3,14 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
-from typing import Iterator, List, Optional, TYPE_CHECKING, Tuple
+from typing import Iterable, Iterator, List, Optional, TYPE_CHECKING, Tuple
 
-from dcs import Point
+from dcs.unittype import VehicleType
 
 from game.config import REWARDS, RUNWAY_REPAIR_COST
 from game.data.radar_db import LAUNCHER_TRACKER_PAIRS, TELARS, TRACK_RADARS
 from game.data.units import UnitClass
 from game.dcs.groundunittype import GroundUnitType
-from dcs.unittype import VehicleType
 from game.theater import ControlPoint, MissionTarget, ParkingType, Player
 from game.theater.theatergroundobject import (
     BuildingGroundObject,
@@ -23,8 +22,12 @@ if TYPE_CHECKING:
     from game import Game
     from game.ato import FlightType
     from game.factions.faction import Faction
+    from game.sim import GameUpdateEvents
     from game.squadrons import Squadron
     from game.theater.theatergroup import TheaterUnit
+
+# (priority, price, unit) of a dead unit that could be repaired.
+RepairCandidate = Tuple[float, float, "TheaterUnit"]
 
 
 @dataclass(frozen=True)
@@ -46,6 +49,7 @@ class ProcurementAi:
         game: Game,
         owner: Player,
         faction: Faction,
+        *,
         manage_runways: bool,
         manage_front_line: bool,
         manage_aircraft: bool,
@@ -109,16 +113,16 @@ class ProcurementAi:
 
         return ground_unit_share
 
-    def spend_budget(self, budget: float) -> float:
+    def spend_budget(self, budget: float, events: GameUpdateEvents) -> float:
         if self.manage_runways:
             budget = self.repair_runways(budget)
         if self.manage_buildings:
-            budget = self.repair_buildings(budget)
+            budget = self.repair_buildings(budget, events)
         if self.manage_front_line or self.manage_ground_objects:
             armor_budget = budget * self.calculate_ground_unit_budget_share()
             budget -= armor_budget
             if self.manage_ground_objects:
-                armor_budget = self.repair_ground_objects(armor_budget)
+                armor_budget = self.repair_ground_objects(armor_budget, events)
             if self.manage_front_line:
                 armor_budget = self.reinforce_front_line(armor_budget)
             budget += armor_budget
@@ -127,70 +131,41 @@ class ProcurementAi:
             budget = self.purchase_aircraft(budget)
         return budget
 
-    def repair_ground_objects(self, budget: float) -> float:
-        repair_turns = self.game.settings.ground_object_repair_turns
-        if repair_turns < 0:
-            return budget
+    @staticmethod
+    def select_repairs(
+        candidates: Iterable[RepairCandidate], budget: float
+    ) -> list[tuple[float, TheaterUnit]]:
+        """Picks the repairs to pay for out of budget.
 
-        repair_budget = budget * self.game.settings.sam_repair_budget_fraction
-        if repair_budget <= 0:
-            return budget
+        Candidates are taken by descending priority, the cheaper one first when
+        priorities are equal. A candidate that no longer fits in the remaining budget
+        is skipped, so cheaper repairs further down the list can still be made.
 
-        repair_candidates: list[tuple[float, int, TheaterUnit]] = []
-        for control_point in self.owned_points:
-            for ground_object in control_point.ground_objects:
-                if not ground_object.is_friendly(self.is_player):
-                    continue
-                if not isinstance(ground_object, SamGroundObject):
-                    continue
-                priority = self.ground_object_repair_priority(ground_object)
-                if priority < self.game.settings.sam_repair_priority_threshold:
-                    continue
-                critical_types = self.critical_unit_types_for_sam(ground_object)
-                critical_dead_ids = {
-                    unit.id
-                    for unit in ground_object.units
-                    if unit.type in critical_types
-                    and not unit.alive
-                    and unit.repairable
-                }
-                for unit in ground_object.units:
-                    if unit.alive or not unit.repairable:
-                        continue
-                    if critical_dead_ids and unit.id not in critical_dead_ids:
-                        continue
-                    if unit.repair_turns_remaining is not None:
-                        continue
-                    if unit.unit_type is None:
-                        continue
-                    if unit.unit_type.price <= 0:
-                        continue
-                    repair_candidates.append((priority, unit.unit_type.price, unit))
-
-        repair_candidates.sort(key=lambda entry: (-entry[0], entry[1]))
-
-        repaired_objects: set[TheaterGroundObject] = set()
-        destroyed_units = self.game.get_destroyed_units()
-        for _, price, unit in repair_candidates:
-            if repair_budget < price:
+        Returns the (price, unit) pairs of the selected repairs.
+        """
+        selected = []
+        for _, price, unit in sorted(candidates, key=lambda c: (-c[0], c[1])):
+            if price > budget:
                 continue
-            if repair_turns == 0:
-                from game.sim.gameupdateevents import GameUpdateEvents
+            budget -= price
+            selected.append((price, unit))
+        return selected
 
-                unit.repair_turns_remaining = None
-                unit.revive(GameUpdateEvents())
-                for entry in list(destroyed_units):
-                    p = Point(
-                        float(entry["x"]),
-                        float(entry["z"]),
-                        self.game.theater.terrain,
-                    )
-                    if p.distance_to_point(unit.position) < 15:
-                        destroyed_units.remove(entry)
-            else:
-                unit.repair_turns_remaining = repair_turns
-            repair_budget -= price
-            repaired_objects.add(unit.ground_object)
+    def begin_repairs(
+        self,
+        candidates: Iterable[RepairCandidate],
+        budget: float,
+        repair_turns: int,
+        events: GameUpdateEvents,
+    ) -> float:
+        """Starts the repairs that fit in budget. Returns the amount spent."""
+        spent = 0.0
+        # A dict rather than a set to report the repaired sites in a stable order.
+        repaired_objects: dict[TheaterGroundObject, None] = {}
+        for price, unit in self.select_repairs(candidates, budget):
+            unit.begin_repair(repair_turns, events)
+            spent += price
+            repaired_objects[unit.ground_object] = None
 
         for ground_object in repaired_objects:
             if self.is_player.is_blue:
@@ -199,10 +174,56 @@ class ProcurementAi:
                 self.game.message(
                     f"OPFOR has begun repairs at {ground_object.obj_name}"
                 )
+        return spent
 
-        return budget - (
-            budget * self.game.settings.sam_repair_budget_fraction - repair_budget
+    def repair_ground_objects(self, budget: float, events: GameUpdateEvents) -> float:
+        """Spends part of the ground unit budget on repairing SAM sites.
+
+        Only SamGroundObject sites are considered; EWR sites are not repaired
+        automatically. Returns the remaining budget.
+        """
+        settings = self.game.settings
+        repair_budget = budget * settings.sam_repair_budget_fraction
+        if repair_budget <= 0:
+            return budget
+        spent = self.begin_repairs(
+            self.sam_repair_candidates(),
+            repair_budget,
+            settings.ground_object_repair_turns,
+            events,
         )
+        return budget - spent
+
+    def sam_repair_candidates(self) -> list[RepairCandidate]:
+        candidates: list[RepairCandidate] = []
+        threshold = self.game.settings.sam_repair_priority_threshold
+        for control_point in self.owned_points:
+            for ground_object in control_point.ground_objects:
+                if not ground_object.is_friendly(self.is_player):
+                    continue
+                if not isinstance(ground_object, SamGroundObject):
+                    continue
+                dead_units = [
+                    unit
+                    for unit in ground_object.units
+                    if not unit.alive and unit.repairable
+                ]
+                if not any(u.repair_turns_remaining is None for u in dead_units):
+                    continue
+                priority = self.ground_object_repair_priority(ground_object)
+                if priority < threshold:
+                    continue
+                critical_types = self.critical_unit_types_for_sam(ground_object)
+                # The units the site can't work without are repaired first. The rest
+                # of the site is only repaired once all of them are back in service.
+                critical = [u for u in dead_units if u.type in critical_types]
+                for unit in critical or dead_units:
+                    if unit.repair_turns_remaining is not None:
+                        continue
+                    if unit.unit_type is None or unit.unit_type.price <= 0:
+                        continue
+                    candidates.append((priority, unit.unit_type.price, unit))
+        return candidates
 
     def ground_object_repair_priority(
         self, ground_object: TheaterGroundObject
@@ -236,9 +257,7 @@ class ProcurementAi:
         ground_object: SamGroundObject,
     ) -> set[type]:
         types_in_site = {unit.type for unit in ground_object.units if unit.unit_type}
-        required_classes: set[UnitClass] = getattr(
-            ground_object, "required_unit_classes", set()
-        )
+        required_classes = ground_object.required_unit_classes
         fallback_required_classes = {
             UnitClass.SEARCH_RADAR,
             UnitClass.SEARCH_TRACK_RADAR,
@@ -355,85 +374,61 @@ class ProcurementAi:
             for front_line in front_lines
         )
 
-    def repair_buildings(self, budget: float) -> float:
-        if budget <= 0:
-            return budget
-        repair_turns = self.game.settings.building_repair_turns
-        if repair_turns < 0:
-            return budget
-        repair_budget = budget * (
-            self.game.settings.building_repair_budget_percent / 100.0
-        )
+    def repair_buildings(self, budget: float, events: GameUpdateEvents) -> float:
+        """Spends up to building_repair_budget_percent of budget on buildings.
+
+        Returns the remaining budget.
+        """
+        settings = self.game.settings
+        repair_budget = budget * settings.building_repair_budget_percent / 100.0
         if repair_budget <= 0:
             return budget
+        spent = self.begin_repairs(
+            self.building_repair_candidates(),
+            repair_budget,
+            settings.building_repair_turns,
+            events,
+        )
+        return budget - spent
 
-        repair_candidates: list[tuple[float, float, TheaterUnit]] = []
+    def building_repair_candidates(self) -> list[RepairCandidate]:
+        candidates: list[RepairCandidate] = []
         for control_point in self.owned_points:
             for ground_object in control_point.ground_objects:
                 if not ground_object.is_friendly(self.is_player):
                     continue
                 if not isinstance(ground_object, BuildingGroundObject):
                     continue
-                priority = self.building_repair_priority(ground_object)
+                dead_statics = [
+                    unit
+                    for unit in ground_object.statics
+                    if not unit.alive and unit.repair_turns_remaining is None
+                ]
+                if not dead_statics:
+                    continue
                 cost = ground_object.repair_cost()
                 if cost <= 0:
                     continue
-                for unit in ground_object.statics:
-                    if unit.alive:
-                        continue
-                    if unit.repair_turns_remaining is not None:
-                        continue
-                    repair_candidates.append((priority, cost, unit))
-
-        repair_candidates.sort(key=lambda entry: (-entry[0], entry[1]))
-
-        repaired_objects: set[TheaterGroundObject] = set()
-        destroyed_units = self.game.get_destroyed_units()
-        for _, price, unit in repair_candidates:
-            if repair_budget < price:
-                continue
-            if repair_turns == 0:
-                from game.sim.gameupdateevents import GameUpdateEvents
-
-                unit.repair_turns_remaining = None
-                unit.revive(GameUpdateEvents())
-                for entry in list(destroyed_units):
-                    p = Point(
-                        float(entry["x"]),
-                        float(entry["z"]),
-                        self.game.theater.terrain,
-                    )
-                    if p.distance_to_point(unit.position) < 15:
-                        destroyed_units.remove(entry)
-            else:
-                unit.repair_turns_remaining = repair_turns
-            repair_budget -= price
-            repaired_objects.add(unit.ground_object)
-
-        for ground_object in repaired_objects:
-            if self.is_player.is_blue:
-                self.game.message(f"We have begun repairs at {ground_object.obj_name}")
-            else:
-                self.game.message(
-                    f"OPFOR has begun repairs at {ground_object.obj_name}"
-                )
-
-        return budget - (
-            budget * (self.game.settings.building_repair_budget_percent / 100.0)
-            - repair_budget
-        )
+                priority = self.building_repair_priority(ground_object)
+                for unit in dead_statics:
+                    candidates.append((priority, cost, unit))
+        return candidates
 
     def building_repair_priority(self, ground_object: BuildingGroundObject) -> float:
         enemy_distance = self.distance_to_nearest_enemy_control_point(ground_object)
-        frontline_distance = self.distance_to_nearest_frontline(ground_object)
         if math.isfinite(enemy_distance):
             remote_score = min(enemy_distance / 20000.0, 2.0)
         else:
             remote_score = 2.0
-        if math.isfinite(frontline_distance):
-            ammo_frontline_score = 1.0 / (1.0 + (frontline_distance / 10000.0))
-        else:
-            ammo_frontline_score = 0.1
+
+        # Front line proximity only matters for ammo depots, which feed the front.
+        ammo_frontline_score = 0.0
+        if ground_object.is_ammo_depot:
+            frontline_distance = self.distance_to_nearest_frontline(ground_object)
+            if math.isfinite(frontline_distance):
+                ammo_frontline_score = 1.0 / (1.0 + (frontline_distance / 10000.0))
+            else:
+                ammo_frontline_score = 0.1
 
         income = REWARDS.get(ground_object.category, 0.0)
         income_score = min(income / 2.0, 2.0)

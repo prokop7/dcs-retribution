@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QWidget,
     QCheckBox,
 )
-from dcs import Point
 from game.config import REWARDS
 from game.data.building_data import FORTIFICATION_BUILDINGS
 from game.server import EventStream
@@ -288,41 +287,21 @@ class QGroundObjectMenu(QDialog):
         return total
 
     def repair_unit(self, unit, price):
-        if self.game.blue.budget > price:
-            self.game.blue.budget -= price
-            repair_turns = self.game.settings.ground_object_repair_turns
-            if repair_turns == 0:
-                unit.alive = True
-                destroyed_units = self.game.get_destroyed_units()
-                for d in list(destroyed_units):
-                    p = Point(d["x"], d["z"], self.game.theater.terrain)
-                    if p.distance_to_point(unit.position) < 15:
-                        destroyed_units.remove(d)
-                        logging.info("Removed destroyed units " + str(d))
-                logging.info(f"Repaired unit: {unit.unit_name}")
-            else:
-                unit.repair_turns_remaining = repair_turns
-                logging.info(f"Scheduled unit repair: {unit.unit_name}")
-            GameUpdateSignal.get_instance().updateGame(self.game)
-
-        self.update_game()
+        self._repair(unit, price, self.game.settings.ground_object_repair_turns)
 
     def repair_building(self, unit, price):
+        self._repair(unit, price, self.game.settings.building_repair_turns)
+
+    def _repair(self, unit, price, repair_turns: int) -> None:
         if self.game.blue.budget > price:
             self.game.blue.budget -= price
-            repair_turns = self.game.settings.building_repair_turns
-            if repair_turns == 0:
-                unit.alive = True
-                destroyed_units = self.game.get_destroyed_units()
-                for d in list(destroyed_units):
-                    p = Point(d["x"], d["z"], self.game.theater.terrain)
-                    if p.distance_to_point(unit.position) < 15:
-                        destroyed_units.remove(d)
-                        logging.info("Removed destroyed units " + str(d))
-                logging.info(f"Repaired building: {unit.unit_name}")
+            events = GameUpdateEvents()
+            unit.begin_repair(repair_turns, events)
+            EventStream.put_nowait(events)
+            if unit.alive:
+                logging.info(f"Repaired unit: {unit.unit_name}")
             else:
-                unit.repair_turns_remaining = repair_turns
-                logging.info(f"Scheduled building repair: {unit.unit_name}")
+                logging.info(f"Scheduled unit repair: {unit.unit_name}")
             GameUpdateSignal.get_instance().updateGame(self.game)
 
         self.update_game()

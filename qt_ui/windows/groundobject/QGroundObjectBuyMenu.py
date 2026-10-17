@@ -241,7 +241,6 @@ class QGroundObjectTemplateLayout(QGroupBox):
         coalition = self.ground_object.coalition
         coalition.budget -= self.cost if self.game.turn else 0
         self.ground_object.groups = []
-        repair_turns = self.game.settings.ground_object_repair_turns
         for group_name, groups in self.layout_model.groups.items():
             for group in groups:
                 if group.enabled:
@@ -253,13 +252,19 @@ class QGroundObjectTemplateLayout(QGroupBox):
                         group.dcs_unit_type,  # Forced Type
                         group.amount,  # Forced Amount
                     )
-        if self.game.turn and repair_turns > 0:
-            # Player purchases should respect repair delays like AI repairs.
+        self.ground_object.required_unit_classes = (
+            ForceGroup.required_unit_classes_for_layout(self.layout_model.layout)
+        )
+        activation_turns = self.game.settings.purchased_ground_object_activation_turns
+        if self.game.turn and activation_turns > 0:
+            # Units bought mid-campaign need time to be set up. They are delivered
+            # dead and come into service through the repair countdown.
             for unit in self.ground_object.units:
                 if not unit.repairable:
                     continue
                 unit.alive = False
-                unit.repair_turns_remaining = repair_turns
+                unit.repair_turns_remaining = activation_turns
+            self.ground_object.invalidate_threat_poly()
         self.close_dialog_signal.emit()
 
 

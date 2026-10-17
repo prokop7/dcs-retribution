@@ -572,6 +572,19 @@ class Settings:
             "performance."
         ),
     )
+    purchased_ground_object_activation_turns: int = bounded_int_option(
+        "Activation delay for ground objects bought mid-campaign (turns)",
+        page=CAMPAIGN_MANAGEMENT_PAGE,
+        section=GENERAL_SECTION,
+        default=2,
+        min=0,
+        max=10,
+        detail=(
+            "Units bought for a SAM, EWR or other ground object site after the first "
+            "turn are delivered dead and enter service after this many turns. Set to "
+            "0 to activate them immediately."
+        ),
+    )
     apply_target_overrides_to_loadouts: bool = boolean_option(
         "Apply target-based weapon settings to player loadouts",
         page=CAMPAIGN_MANAGEMENT_PAGE,
@@ -690,8 +703,9 @@ class Settings:
         HQ_AUTOMATION_SECTION,
         default=False,
         detail=(
-            "If enabled, AI can spend budget to repair destroyed ground object units "
-            "such as SAMs and EWRs."
+            "If enabled, the procurement AI of both coalitions spends part of the "
+            "ground unit budget repairing destroyed units at SAM sites, radars and "
+            "launchers first. EWR sites are not repaired automatically."
         ),
     )
     ground_object_repair_turns: int = bounded_int_option(
@@ -702,8 +716,9 @@ class Settings:
         max=10,
         default=2,
         detail=(
-            "Turns required for repaired ground object units to return to service. "
-            "Set to 0 for instant repairs."
+            "Turns before a repaired ground object unit returns to service. Applies "
+            "to automated SAM repairs and to repairs bought from the ground object "
+            "menu. Set to 0 for instant repairs."
         ),
     )
     automate_building_repairs: bool = boolean_option(
@@ -712,8 +727,8 @@ class Settings:
         HQ_AUTOMATION_SECTION,
         default=False,
         detail=(
-            "If enabled, AI can spend budget to repair destroyed income buildings "
-            "such as depots and factories."
+            "If enabled, the procurement AI of both coalitions can spend budget "
+            "repairing destroyed income buildings such as depots and factories."
         ),
     )
     building_repair_turns: int = bounded_int_option(
@@ -724,7 +739,8 @@ class Settings:
         max=10,
         default=4,
         detail=(
-            "Turns required for repaired buildings to return to service. "
+            "Turns before a repaired building returns to service. Applies to "
+            "automated repairs and to repairs bought from the ground object menu. "
             "Set to 0 for instant repairs."
         ),
     )

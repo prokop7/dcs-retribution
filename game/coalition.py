@@ -170,7 +170,7 @@ class Coalition:
         """
         self.air_wing.populate_for_turn_0(squadrons_start_full)
 
-    def initialize_turn(self, is_turn_0: bool) -> None:
+    def initialize_turn(self, is_turn_0: bool, events: GameUpdateEvents) -> None:
         """Processes coalition-specific turn initialization.
 
         For more information on turn initialization in general, see the documentation
@@ -191,7 +191,7 @@ class Coalition:
 
         if not is_turn_0:
             self.plan_missions(self.game.conditions.start_time)
-        self.plan_procurement()
+        self.plan_procurement(events)
 
     def refund_outstanding_orders(self) -> None:
         # TODO: Split orders between air and ground units.
@@ -217,7 +217,7 @@ class Coalition:
                         self, self.game.settings.desired_player_mission_duration
                     ).schedule_missions(now)
 
-    def plan_procurement(self) -> None:
+    def plan_procurement(self, events: GameUpdateEvents) -> None:
         # The first turn needs to buy a *lot* of aircraft to fill CAPs, so it gets much
         # more of the budget that turn. Otherwise budget (after repairs) is split evenly
         # between air and ground. For the default starting budget of 2000 this gives 600
@@ -241,12 +241,12 @@ class Coalition:
             self.game,
             self.player,
             self.faction,
-            manage_runways,
-            manage_front_line,
-            manage_aircraft,
-            manage_ground_objects,
-            manage_buildings,
-        ).spend_budget(self.budget)
+            manage_runways=manage_runways,
+            manage_front_line=manage_front_line,
+            manage_aircraft=manage_aircraft,
+            manage_ground_objects=manage_ground_objects,
+            manage_buildings=manage_buildings,
+        ).spend_budget(self.budget, events)
 
     def add_procurement_request(self, request: AircraftProcurementRequest) -> None:
         self.procurement_requests.add(request)

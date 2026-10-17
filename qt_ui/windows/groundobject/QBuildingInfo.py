@@ -61,7 +61,7 @@ class QBuildingInfo(QGroupBox):
             elif self.ground_object.control_point.captured.is_blue:
                 price = self.ground_object.repair_cost()
                 if price > 0:
-                    repair = QPushButton(f"Repair [{price}M]")
+                    repair = QPushButton(f"Repair [{price:g}M]")
                     repair.setProperty("style", "btn-success")
                     repair.clicked.connect(
                         lambda checked=False, u=self.building, p=price: self.on_repair(

@@ -24,6 +24,10 @@ if TYPE_CHECKING:
 FIXED_POS_ARG = "--fix-pos"
 FIXED_HDG_ARG = "--fix-hdg"
 
+# Wrecks closer than this to a repaired unit are removed from the destroyed units
+# list so that the repaired unit isn't drawn on top of its own carcass.
+REPAIR_CARCASS_RADIUS = meters(15)
+
 
 @dataclass
 class TheaterUnit:
@@ -45,7 +49,9 @@ class TheaterUnit:
     fixed_hdg: bool = False
     # State of the unit, dead or alive
     alive: bool = True
-    # Turns remaining until the unit is repaired and revived.
+    # Turns remaining until the unit is repaired and revived. None when no repair is
+    # in progress. The class-level default also covers saves made before repairs
+    # existed, since unpickling doesn't run __init__.
     repair_turns_remaining: Optional[int] = None
 
     @staticmethod
@@ -103,6 +109,38 @@ class TheaterUnit:
         if self.ground_object.is_iads:
             iads = self.ground_object.control_point.coalition.game.theater.iads_network
             iads.update_tgo(self.ground_object, events)
+
+    def begin_repair(self, turns: int, events: GameUpdateEvents) -> None:
+        """Starts repairing this dead unit.
+
+        The unit returns to service after the given number of turns. With 0 turns it
+        is revived immediately.
+        """
+        if turns <= 0:
+            self.complete_repair(events)
+        else:
+            self.repair_turns_remaining = turns
+
+    def complete_repair(self, events: GameUpdateEvents) -> None:
+        """Revives the unit and clears the wreck left at its position."""
+        self.repair_turns_remaining = None
+        # revive() reuses a cached threat poly, which doesn't include this unit yet.
+        self.ground_object.invalidate_threat_poly()
+        self.revive(events)
+        game = self.ground_object.control_point.coalition.game
+        game.remove_destroyed_units_near(self.position, REPAIR_CARCASS_RADIUS)
+
+    def process_repair_turn(self, events: GameUpdateEvents) -> None:
+        """Advances the repair countdown by one turn, reviving the unit when done."""
+        turns_remaining = self.repair_turns_remaining
+        if turns_remaining is None:
+            return
+        if self.alive:
+            self.repair_turns_remaining = None
+        elif turns_remaining <= 1:
+            self.complete_repair(events)
+        else:
+            self.repair_turns_remaining = turns_remaining - 1
 
     @property
     def unit_name(self) -> str:
