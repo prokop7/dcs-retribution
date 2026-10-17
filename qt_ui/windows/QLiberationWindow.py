@@ -149,6 +149,8 @@ class QLiberationWindow(QMainWindow):
         self.top_panel = QTopPanel(
             self.game_model, self.sim_controller, ui_flags, self.commander_bridge
         )
+        if self.top_panel.commander_status is not None:
+            self.statusBar().addPermanentWidget(self.top_panel.commander_status)
         vbox = QVBoxLayout()
         vbox.setContentsMargins(0, 0, 0, 0)
         vbox.addWidget(self.top_panel)

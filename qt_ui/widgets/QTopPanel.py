@@ -123,10 +123,11 @@ class QTopPanel(QFrame):
         self.layout.addWidget(self.budgetBox)
         self.layout.addWidget(self.intel_box)
         self.layout.addWidget(self.buttonBox)
+        # Created here so turn changes refresh it, but placed in the main window's
+        # status bar: the top panel is already as wide as a 16:9 screen allows.
         self.commander_status: Optional[CommanderStatusPanel] = None
         if commander_bridge is not None:
             self.commander_status = CommanderStatusPanel(commander_bridge)
-            self.layout.addWidget(self.commander_status)
             commander_bridge.state_changed.connect(self.update_flying_controls)
         self.layout.addStretch(1)
         self.layout.addWidget(self.proceedBox)

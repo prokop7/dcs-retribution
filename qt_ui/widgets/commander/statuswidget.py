@@ -8,7 +8,7 @@ from typing import Optional
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
-    QGroupBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -112,8 +112,12 @@ def commander_status(bridge: CommanderBridge, player: Player) -> CommanderStatus
     )
 
 
-class CommanderStatusBox(QGroupBox):
-    """Status and controls of one side's commander."""
+class CommanderStatusBox(QWidget):
+    """Status and controls of one side's commander, as one compact row.
+
+    Shown in the main window's status bar: the top panel has no room left, and
+    widgets there set the window's minimum width.
+    """
 
     def __init__(
         self,
@@ -121,7 +125,7 @@ class CommanderStatusBox(QGroupBox):
         player: Player,
         journal_source: Optional[JournalSource] = None,
     ) -> None:
-        super().__init__(f"{side_label(player)} commander")
+        super().__init__()
         self.bridge = bridge
         self.player = player
         self.journal_source = journal_source
@@ -129,7 +133,10 @@ class CommanderStatusBox(QGroupBox):
         self.status = CommanderStatus(CommanderUiState.IDLE, "")
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(6, 2, 6, 2)
+        layout.setContentsMargins(4, 0, 4, 0)
+        layout.setSpacing(4)
+        self.side_label = QLabel(f"<b>{side_label(player)}</b>")
+        layout.addWidget(self.side_label)
         self.status_label = QLabel()
         layout.addWidget(self.status_label)
 
@@ -160,8 +167,8 @@ class CommanderStatusBox(QGroupBox):
             self._close_log()
             return
         self.status = commander_status(self.bridge, self.player)
-        # Wide enough for the longest status, so the crowded top panel can't clip
-        # it. Measured after polishing, since the stylesheet sets the font.
+        # Wide enough for the longest status so the row doesn't jump while the
+        # timer ticks. Measured after polishing, since the stylesheet sets the font.
         self.status_label.ensurePolished()
         self.status_label.setMinimumWidth(
             self.status_label.fontMetrics().horizontalAdvance(_WIDEST_STATUS) + 8
@@ -210,7 +217,12 @@ class CommanderStatusPanel(QWidget):
             player: CommanderStatusBox(bridge, player, journal_source)
             for player in COMMANDED_SIDES
         }
-        for box in self.boxes.values():
+        for index, box in enumerate(self.boxes.values()):
+            if index:
+                separator = QFrame()
+                separator.setFrameShape(QFrame.Shape.VLine)
+                separator.setFrameShadow(QFrame.Shadow.Sunken)
+                layout.addWidget(separator)
             layout.addWidget(box)
 
         # Ticks the elapsed time while a commander plans.
