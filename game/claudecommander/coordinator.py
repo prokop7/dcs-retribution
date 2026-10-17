@@ -233,6 +233,8 @@ class CommanderCoordinator:
         )
 
     def _start(self, player: Player) -> None:
+        from game.claudecommander.tools.ato import locked_package_descriptions
+
         game = self.game
         assert game is not None
         if self.is_planning(player) or not commander_enabled(game, player):
@@ -255,6 +257,7 @@ class CommanderCoordinator:
                 changes=changes,
                 debrief=state.pending_debrief if kind is RunKind.TURN else None,
                 is_first_turn=kind is RunKind.TURN and state.planned_turn < 0,
+                locked_packages=locked_package_descriptions(game.coalition_for(player)),
             )
             session_id = state.session_id
 
