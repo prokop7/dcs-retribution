@@ -1,6 +1,10 @@
 # Retribution v1.6.0
 
 ## Features/Improvements
+* **[Campaign AI]** New HQ automation option to repair SAM sites. Procurement spends part of the ground unit budget on the destroyed radars and launchers of the most valuable sites (threat range, front line proximity, covered bases, ground objects and income); repaired units return to service after a configurable number of turns. EWR sites are not repaired automatically. Tuning options are on the new "Campaign Management+" settings page.
+* **[Campaign AI]** New HQ automation option to repair destroyed income buildings (depots, factories, oil, ...) after runway repairs, with a configurable budget share, repair time and priorities.
+* **[UX]** Repairs bought in the ground object menu (units and, new, buildings) now take the configured number of turns, and the menu shows the remaining turns. Sites under repair are shown as damaged on the map.
+* **[Options]** Units bought for a ground object site mid-campaign enter service after a configurable delay ("Activation delay for ground objects bought mid-campaign", 2 turns by default, 0 = instant).
 * **[Modding]** Added support for the CurrentHill Iran Military Assets pack: the Shahed-136 launcher, two IRGCN fast-attack craft, and a new `[CH] Iran 2020` faction, behind a New Game mods checkbox. (#886)
 * **[Kneeboard]** Use a light-grey daytime kneeboard background instead of near-white, to avoid glare under HDR / Auto-HDR while staying readable in daylight.
 * **[UX]** Hovering a friendly flight's route line on the map highlights it in yellow, and clicking it selects that flight's package (and the flight) in the ATO sidebar.
