@@ -86,6 +86,8 @@ def test_cancelled_status() -> None:
 def test_run_messages() -> None:
     first = run_message(RunBrief(RunKind.TURN, 0, is_first_turn=True))
     assert "campaign begins" in first
+    takeover = run_message(RunBrief(RunKind.TURN, 7, is_first_turn=True))
+    assert "take command of this side in an ongoing campaign" in takeover
     assert "None. Use your own judgement." in first
 
     turn = run_message(

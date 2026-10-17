@@ -6,7 +6,6 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from game.claudecommander.context import CommanderContext, GAME_LOCK
-from game.claudecommander.mcpserver import commander_dispatcher
 from game.server.dependencies import GameContext
 from game.server.eventstream import EventStream
 from game.claudecommander.mcp.auth import CommanderTokens
@@ -27,6 +26,9 @@ def _authorize(side: str, authorization: Optional[str]) -> Player:
 def _dispatch(
     player: Player, payload: Any
 ) -> Optional[dict[str, Any] | list[dict[str, Any]]]:
+    # Imported here: the tools import game.server modules, which import this one.
+    from game.claudecommander.mcpserver import commander_dispatcher
+
     # Tool calls touch the game model, so keep them off the event loop and
     # serialized with every other commander call.
     with GAME_LOCK, EventStream.event_context() as events:
