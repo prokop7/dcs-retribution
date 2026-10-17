@@ -1,6 +1,12 @@
-"""Commander MCP tools.
-
-Each module registers its tools on ``commander_tools`` at import time.
-"""
-
-from . import ato, forces, geometry, lookup, situation, targets
+from . import (
+    airchecks,
+    ato,
+    forces,
+    geometry,
+    loadouts,
+    lookup,
+    packages,
+    situation,
+    targets,
+    waypoints,
+)

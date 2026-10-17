@@ -8,6 +8,7 @@ session. Tests must leave it as they found it: undo any mutation in a
 from __future__ import annotations
 
 import logging
+import pickle
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator
@@ -15,8 +16,10 @@ from typing import Iterator
 import pytest
 from dcs.payloads import PayloadDirectories
 
-from game import Game, persistency
+from game import Game, naming, persistency
+from game.ato.closestairfields import ObjectiveDistanceCache
 from game.campaignloader.campaign import Campaign, DEFAULT_BUDGET
+from game.server.eventstream import EventStream
 from game.factions import FACTIONS
 from game.settings import Settings
 from game.theater.start_generator import GameGenerator, GeneratorSettings, ModSettings
@@ -85,3 +88,23 @@ def test_game(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Game]:
     finally:
         logging.getLogger().setLevel(previous_level)
     yield game
+
+
+@pytest.fixture
+def game(test_game: Game) -> Iterator[Game]:
+    """A private copy of the test game for tests that change it.
+
+    The copy goes through pickle like a save and load (about half a second), so
+    tests can mutate it freely. Process-wide caches that point at a game (the
+    airfield distance cache, the name generator) are switched to the copy and
+    back.
+    """
+    copy = pickle.loads(pickle.dumps(test_game))
+    original_namegen = naming.namegen
+    copy.on_load(game_still_initializing=True)
+    try:
+        yield copy
+    finally:
+        ObjectiveDistanceCache.set_theater(test_game.theater)
+        naming.namegen = original_namegen
+        EventStream.drain()
