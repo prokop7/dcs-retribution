@@ -1,6 +1,6 @@
 # Claude Commander
 
-Status: **draft for review**. Branch: `feature/claude-commander`, based on `origin/dev` @ 49e8067f.
+Status: **approved, in implementation**. Branch: `feature/claude-commander`, based on `origin/dev` @ 49e8067f.
 
 The goal is fully autonomous, LLM-driven campaign planning for RED and BLUE. Claude takes on the commander role: it decides air packages (down to waypoints and loadouts), procurement, ground-war stance, squadron basing and transfers, and repairs. It keeps a persistent memory of the campaign. REDFOR should play like a human opponent.
 
@@ -68,9 +68,13 @@ The goal is fully autonomous, LLM-driven campaign planning for RED and BLUE. Cla
   - `game.turn < last_synced_turn` (rewind) → new session seeded with `journal.md` cut off at that turn.
   - `--resume` fails because the session was lost → new session seeded with the whole journal.
 - **Journal** (Markdown, human-readable) lives at `<Saved Games>/Retribution/Commander/<campaign_id>/<side>/journal.md`. It has one `## Turn N` section per turn. Each section holds the commander's intent and objectives (written by Claude through a tool), the plan summary, the debrief, and lessons learned. The game writes the file, never Claude directly.
-- **`PlanningJob`** runs both sides in parallel on worker threads. It emits Qt signals (progress, package created, finished, failed). Game mutations from tool calls go through one game lock, the same way the existing server routes mutate the game, and emit `GameUpdateEvents` so the map updates live.
+- **`PlanningJob`** runs both sides in parallel on worker threads and reports events and completion to a listener. Game mutations from tool calls are serialized by `GAME_LOCK` (`context.py`) and emit `GameUpdateEvents` so the map updates live.
+- **`CommanderCoordinator`** (`coordinator.py`) is process-wide and isn't saved. The UI attaches it to the loaded game with a listener, which the Qt layer marshals to the UI thread. It decides between a turn run and an incremental run, queues requests that arrive mid-run, writes results back into `CommanderState`, and handles retry, cancel and fallback to the built-in planner. `needs_planning` and pending changes stay in the saved state until a run succeeds, so a game closed mid-run plans again on load.
+- **Session progress** is tracked in `sessions.json` in the work folder, not in the save. An older save still points at the same session id, so rewinds are detected against the registry.
+- **Debriefs:** `MissionSimulation.process_results` stores a fog-filtered `summarize_debriefing` and the enemy aircraft sightings in each Claude side's `CommanderState`.
 
-### 2.2 MCP endpoint: `game/server/mcp/`
+### 2.2 MCP endpoint
+The protocol, tool registry and per-side tokens live in `game/claudecommander/mcp/`; only the FastAPI route (`/mcp/{side}`) is in `game/server/mcp/`. That split avoids an import cycle with `game.server`.
 - This is a small hand-written implementation of MCP Streamable HTTP: JSON-RPC over POST, with `initialize`, `tools/list` and `tools/call`. It is mounted on the existing FastAPI server.
 - Writing it by hand avoids the official `mcp` SDK, which needs `anyio>=4.5`, while upstream pins `anyio==3.7.1`.
 - Tool input schemas are generated from pydantic models.
@@ -135,7 +139,7 @@ Every write validates its input and returns either the result or a structured er
 - `finish_turn_planning`: summary. Ends the run.
 
 ### 2.5 Turn integration
-- In `Coalition.initialize_turn`, a side with Claude enabled skips the HTN commander, `ProcurementAi`, ground planner stances and transfer planning for the domains Claude owns. `Game.initialize_turn` then starts a `PlanningJob` for those sides.
+- In `Coalition.initialize_turn`, a side with Claude enabled skips the HTN commander, `ProcurementAi`, ground planner stances and transfer planning for the domains Claude owns. It then calls `CommanderCoordinator.request`. UI code that changes the situation mid-turn calls `Game.notify_commander(player, change)` first, so the commander learns what changed.
 - **Start of turn** (after the debriefing): the job sends the side's session a turn message. The message holds the turn number, the conditions, the fog-filtered debrief (own losses, confirmed kills, targets hit and missed), changes, the directive, and the instruction to plan.
 - **Mid-turn re-inits** (TGO buy/sell, cheats, ground stance, conditions dialog, air wing config) send an *incremental* message describing what changed, plus the current ATO. Packages the player locked are marked read-only in the tools. Conditions changes (time/date/weather) notify **both** sides.
 - **Turn 0** follows upstream: no missions. Claude does the initial procurement, reads the campaign briefing and writes its opening intent.

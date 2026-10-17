@@ -79,4 +79,10 @@ Most game content is data in `resources/`, loaded by thin Python wrappers:
 `game/settings/settings.py::Settings` is one large dataclass. Each field is declared with an option helper (`boolean_option`, `bounded_int_option`, `bounded_float_option`, `choices_option`, `minutes_option`, `skill_option`) that carries its `page`/`section` metadata. The Qt settings window and the new-game wizard build their widgets from that metadata. Adding a field with a default is usually all a new setting needs.
 
 ### Claude Commander (branch `feature/claude-commander`, in progress)
-Design: `docs/dev/design/claude-commander.md`. Claude (headless Claude Code CLI) plans RED and/or BLUE: air packages down to waypoints and loadouts, procurement, front-line stance, transfers and repairs. Each side runs in its own long-lived session and talks to a fog-of-war filtered MCP endpoint served by the game's FastAPI server. The older `game/llm` / `game/mcp` code on `feature/mcp-server` is superseded; don't port it.
+Design: `docs/dev/design/claude-commander.md`. Claude (headless Claude Code CLI) plans RED and/or BLUE: air packages down to waypoints and loadouts, procurement, front-line stance, transfers and repairs. Code lives in `game/claudecommander/`:
+- `coordinator.py` decides when a side plans. It is driven by `Coalition.initialize_turn` and `Game.notify_commander`.
+- `runner.py`, `process.py` and `session.py` launch `claude -p` and resume one long-lived session per campaign and side.
+- `tools/` holds the MCP tools. Every read must go through `view.py` (`CommanderView`), which enforces fog of war ("static known, dynamic hidden").
+- `state.py` (`CommanderState`) is saved on each `Coalition`.
+
+The MCP route is `game/server/mcp/routes.py` on the existing FastAPI server, and a per-run token binds each connection to one side. Tests are in `tests/claudecommander/`; `conftest.py` generates a real campaign (`test_game`, about 10 s once per session). The older `game/llm` / `game/mcp` code on `feature/mcp-server` is superseded; don't port it.
