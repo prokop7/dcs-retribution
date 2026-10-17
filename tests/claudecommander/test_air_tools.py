@@ -34,11 +34,26 @@ WRITE_TOOLS = {
     "edit_flight_waypoints",
     "set_flight_loadout",
     "set_flight_start_type",
+    "set_front_line_stance",
+    "buy_aircraft",
+    "cancel_aircraft_order",
+    "buy_ground_units",
+    "cancel_ground_unit_order",
+    "buy_or_rebuild_site",
+    "repair_site",
+    "repair_building",
+    "repair_runway",
+    "transfer_ground_units",
+    "relocate_squadron",
+    "write_journal",
+    "finish_turn_planning",
 }
 READ_TOOLS = {
     "estimate_flight",
     "lookup_weapon",
     "validate_air_plan",
+    "read_journal",
+    "get_site_options",
 }
 
 
