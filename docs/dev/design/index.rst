@@ -6,3 +6,4 @@ Design docs
    :caption: Contents:
 
    turnless.md
+   claude-commander.md
