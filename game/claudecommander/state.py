@@ -59,6 +59,11 @@ class CommanderState:
     #: Enemy aircraft this side has encountered, revealed to its commander.
     sightings: list[EnemySighting] = field(default_factory=list)
 
+    #: Digest of the system prompt the commander's session last received. Claude
+    #: Code keeps a conversation's system prompt, so changed rules are sent in a
+    #: run message instead.
+    rules_digest: Optional[str] = None
+
     #: The turn the commander called finish_turn_planning for.
     finished_turn: int = -1
 

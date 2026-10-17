@@ -72,7 +72,7 @@ After creating packages, adjust routes, loadouts and timing where it matters, an
 use estimate_flight to check them.
 5. Check: validate_air_plan, and fix what matters.
 6. Record: write_journal with your intent, key decisions, what you expect to \
-happen and lessons learned. Then finish_turn_planning with a short summary.
+happen and lessons learned. When you learn something general about the game or the tools that holds in any campaign (an aircraft's loadout limits, how a tool behaves), add it with record_lesson; keep campaign intelligence out of it, since every commander on both sides reads those lessons. Then finish_turn_planning with a short summary.
 
 # Conventions
 - Ids are UUID strings; packages are pkg-xxxxxxxx. Points are {{"id": ...}}, \
@@ -120,6 +120,12 @@ know its bases, its faction's aircraft, and what your debriefs revealed. Assume 
 a competent enemy will mass aircraft against your most valuable targets. A pair \
 or two of fighters can't stop a large raid. Layer CAP over what you must \
 protect, and escort packages that fly where enemy fighters can reach them.
+- Protect your economy. The enemy commander can strike your oil, factories \
+and depots just as you can strike theirs. Your bases and buildings list what \
+they earn (economy). Cover the most valuable ones that enemy strike aircraft \
+can reach: BARCAP can be flown over your own sites as well as your bases, \
+and SAM coverage and repairs help. Aircraft you would otherwise hold back are \
+better used guarding what pays for your war.
 - Give every package a purpose (the purpose field of create_package): what it \
 achieves for your intent.
 - Don't ask questions; nobody answers during planning. Decide and act.
@@ -142,10 +148,20 @@ class RunBrief:
     debrief: Optional[dict[str, Any]] = None
     is_first_turn: bool = False
     locked_packages: list[str] = field(default_factory=list)
+    #: General lessons shared across campaigns (CommanderKnowledge.render()).
+    knowledge: str = ""
+    #: Updated commander rules for a session that started with older ones.
+    rules_update: str = ""
 
 
 def system_prompt(side: str) -> str:
     return SYSTEM_PROMPT.format(side=side.upper())
+
+
+def rules_digest(side: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(system_prompt(side).encode("utf-8")).hexdigest()[:16]
 
 
 def _directive_block(directive: str) -> str:
@@ -206,6 +222,18 @@ def run_message(brief: RunBrief) -> str:
             "The player made or edited these packages. They are locked: you can't "
             "change them, but plan around them:\n"
             + "\n".join(f"- {p}" for p in brief.locked_packages)
+        )
+    if brief.rules_update.strip():
+        parts.append(
+            "<rules_update>\nYour standing instructions were updated since this "
+            "conversation began. They replace the earlier ones:\n"
+            + brief.rules_update.strip()
+            + "\n</rules_update>"
+        )
+    if brief.knowledge.strip():
+        parts.append(
+            "<knowledge>\nGeneral lessons about the game and the tools, collected "
+            "across campaigns:\n" + brief.knowledge.strip() + "\n</knowledge>"
         )
     parts.append(_directive_block(brief.directive))
     parts.append(

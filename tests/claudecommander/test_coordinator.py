@@ -267,3 +267,30 @@ def test_deferred_change_rides_along_without_rerun(coordinator: Any) -> None:
     wait_until(lambda: not coord.is_planning(Player.RED))
     assert "Enemy site SA-10 changed." in runner.messages[1]
     assert state.deferred_changes == []
+
+
+def test_changed_rules_reach_existing_sessions(coordinator: Any) -> None:
+    from game.claudecommander.prompts import rules_digest
+
+    coord, runner = coordinator(
+        [
+            ClaudeRunResult(session_id="s1", success=True),
+            ClaudeRunResult(session_id="s1", success=True),
+        ]
+    )
+    game = make_game()
+    state = game.coalition_for(Player.RED).commander
+    state.session_id = "s1"
+    state.rules_digest = "older rules"
+    listener = Listener()
+    coord.attach(game, listener)
+    coord.request(game, Player.RED)
+    wait_until(lambda: len(listener.finished) == 1)
+    wait_until(lambda: not coord.is_planning(Player.RED))
+    assert "<rules_update>" in runner.messages[0]
+    assert state.rules_digest == rules_digest("Red")
+
+    coord.request(game, Player.RED, "Weather changed.")
+    wait_until(lambda: len(listener.finished) == 2)
+    wait_until(lambda: not coord.is_planning(Player.RED))
+    assert "<rules_update>" not in runner.messages[1]

@@ -19,9 +19,15 @@ from game.claudecommander.config import ClaudeRunConfig
 from game.claudecommander.context import GAME_LOCK
 from game.claudecommander.events import OtherEvent, StreamEvent
 from game.claudecommander.journal import CommanderJournal
+from game.claudecommander.knowledge import CommanderKnowledge, USER_KNOWLEDGE_NAME
 from game.claudecommander.planning import PlanningJob, PlanningStatus, SideRun
 from game.claudecommander.process import ClaudeRunResult
-from game.claudecommander.prompts import RunBrief, RunKind, system_prompt
+from game.claudecommander.prompts import (
+    RunBrief,
+    RunKind,
+    rules_digest,
+    system_prompt,
+)
 from game.claudecommander.runner import CommanderPaths, CommanderRunner
 from game.theater.player import Player
 
@@ -84,6 +90,13 @@ def journal_heading(game: Game, player: Player) -> str:
         f"{player.value} commander journal — "
         f"{game.campaign_name or 'campaign'} ({game.campaign_id})"
     )
+
+
+def commander_knowledge() -> CommanderKnowledge:
+    """General lessons shared by every commander in every campaign."""
+    from game.persistency import commander_dir
+
+    return CommanderKnowledge(commander_dir() / USER_KNOWLEDGE_NAME)
 
 
 def commander_journal(game: Game, player: Player) -> CommanderJournal:
@@ -262,6 +275,15 @@ class CommanderCoordinator:
                 debrief=state.pending_debrief if kind is RunKind.TURN else None,
                 is_first_turn=kind is RunKind.TURN and state.planned_turn < 0,
                 locked_packages=locked_package_descriptions(game.coalition_for(player)),
+                knowledge=(
+                    commander_knowledge().render() if kind is RunKind.TURN else ""
+                ),
+                rules_update=(
+                    system_prompt(player.value)
+                    if state.session_id is not None
+                    and state.rules_digest != rules_digest(player.value)
+                    else ""
+                ),
             )
             session_id = state.session_id
 
@@ -299,6 +321,7 @@ class CommanderCoordinator:
             state = coalition.commander
             if result.session_id is not None and result.success:
                 state.session_id = result.session_id
+                state.rules_digest = rules_digest(player.value)
             if status is PlanningStatus.SUCCEEDED:
                 if kind is RunKind.TURN:
                     state.planned_turn = game.turn

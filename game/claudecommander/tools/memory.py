@@ -104,3 +104,28 @@ def finish_turn_planning(context: CommanderContext, args: FinishArgs) -> Json:
         "turn": context.game.turn,
         "air_plan": check,
     }
+
+
+class RecordLessonArgs(BaseModel):
+    lesson: str = Field(
+        min_length=10,
+        max_length=400,
+        description="One general lesson about the game or the planning tools, "
+        "true in any campaign.",
+    )
+
+
+@commander_tools.register(
+    "record_lesson",
+    "Adds a general lesson to the knowledge every commander reads at the start of "
+    "each turn, in every campaign and on both sides: facts about aircraft, "
+    "loadouts, weapons or how the tools behave (for example a loadout's range "
+    "limit). Never record intelligence about the current campaign or the enemy; "
+    "that belongs in your journal.",
+    RecordLessonArgs,
+)
+def record_lesson(context: CommanderContext, args: RecordLessonArgs) -> Json:
+    from game.claudecommander.coordinator import commander_knowledge
+
+    added = commander_knowledge().add(args.lesson)
+    return {"recorded": added, "note": None if added else "Already known."}
