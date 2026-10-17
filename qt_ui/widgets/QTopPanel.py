@@ -26,21 +26,34 @@ from qt_ui.widgets.QConditionsWidget import QConditionsWidget
 from qt_ui.widgets.QFactionsInfos import QFactionsInfos
 from qt_ui.widgets.QIntelBox import QIntelBox
 from qt_ui.widgets.clientslots import MaxPlayerCount
+from qt_ui.widgets.commander.statuswidget import CommanderStatusPanel
 from qt_ui.widgets.simspeedcontrols import SimSpeedControls
 from qt_ui.windows.AirWingDialog import AirWingDialog
 from qt_ui.windows.GameUpdateSignal import GameUpdateSignal
 from qt_ui.windows.PendingTransfersDialog import PendingTransfersDialog
 from qt_ui.windows.QWaitingForMissionResultWindow import QWaitingForMissionResultWindow
+from qt_ui.windows.commander.bridge import CommanderBridge
+
+FLYING_BLOCKED_TOOLTIP = (
+    "A Claude commander is planning. Wait for it to finish, or cancel it in the "
+    "commander status."
+)
 
 
 class QTopPanel(QFrame):
     def __init__(
-        self, game_model: GameModel, sim_controller: SimController, ui_flags: UiFlags
+        self,
+        game_model: GameModel,
+        sim_controller: SimController,
+        ui_flags: UiFlags,
+        commander_bridge: Optional[CommanderBridge] = None,
     ) -> None:
         super(QTopPanel, self).__init__()
         self.game_model = game_model
         self.sim_controller = sim_controller
+        self.commander_bridge = commander_bridge
         self.dialog: Optional[QDialog] = None
+        self._controls_enabled = True
 
         self.setMaximumHeight(70)
 
@@ -110,6 +123,11 @@ class QTopPanel(QFrame):
         self.layout.addWidget(self.budgetBox)
         self.layout.addWidget(self.intel_box)
         self.layout.addWidget(self.buttonBox)
+        self.commander_status: Optional[CommanderStatusPanel] = None
+        if commander_bridge is not None:
+            self.commander_status = CommanderStatusPanel(commander_bridge)
+            self.layout.addWidget(self.commander_status)
+            commander_bridge.state_changed.connect(self.update_flying_controls)
         self.layout.addStretch(1)
         self.layout.addWidget(self.proceedBox)
 
@@ -119,6 +137,7 @@ class QTopPanel(QFrame):
 
         GameUpdateSignal.get_instance().gameupdated.connect(self.setGame)
         GameUpdateSignal.get_instance().budgetupdated.connect(self.budget_update)
+        self.update_flying_controls()
 
     @property
     def game(self) -> Optional[Game]:
@@ -154,6 +173,9 @@ class QTopPanel(QFrame):
             self.simSpeedControls.setEnabled(False)
         else:
             raise RuntimeError(f"game.turn out of bounds!\n  value = {game.turn}")
+        if self.commander_status is not None:
+            self.commander_status.refresh()
+        self.update_flying_controls()
 
     def open_air_wing(self):
         self.dialog = AirWingDialog(self.game_model, self.window())
@@ -163,13 +185,29 @@ class QTopPanel(QFrame):
         self.dialog = PendingTransfersDialog(self.game_model)
         self.dialog.show()
 
+    @property
+    def commanders_planning(self) -> bool:
+        return self.commander_bridge is not None and self.commander_bridge.any_planning
+
+    def update_flying_controls(self) -> None:
+        """Blocks passing the turn and taking off while a commander plans."""
+        game = self.game
+        allowed = self._controls_enabled and not self.commanders_planning
+        self.passTurnButton.setEnabled(game is not None and allowed)
+        self.proceedButton.setEnabled(game is not None and game.turn > 0 and allowed)
+        tooltip = FLYING_BLOCKED_TOOLTIP if self.commanders_planning else ""
+        self.passTurnButton.setToolTip(tooltip)
+        self.proceedButton.setToolTip(tooltip)
+
     def passTurn(self):
+        if self.commanders_planning:
+            return
         with logged_duration("Skipping turn"):
             self.game.pass_turn(no_action=True)
             GameUpdateSignal.get_instance().updateGame(self.game)
             state = self.game_model.game.check_win_loss()
             GameUpdateSignal.get_instance().gameStateChanged(state)
-            self.proceedButton.setEnabled(True)
+            self.update_flying_controls()
 
     def negative_start_packages(self, now: datetime) -> List[Package]:
         packages = []
@@ -288,6 +326,8 @@ class QTopPanel(QFrame):
 
     def launch_mission(self):
         """Finishes planning and waits for mission completion."""
+        if self.commanders_planning:
+            return
         if not self.game.ato_has_clients() and not self.confirm_no_client_launch():
             return
 
@@ -318,8 +358,10 @@ class QTopPanel(QFrame):
         self.budgetBox.setGame(game)
 
     def setControls(self, enabled: bool):
+        self._controls_enabled = enabled
         for controller in self.controls:
             controller.setEnabled(enabled)
+        self.update_flying_controls()
 
     def check_for_contact(self) -> bool:
         if (

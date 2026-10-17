@@ -33,9 +33,15 @@ from game.ato.flight import Flight
 from game.ato.package import Package
 from game.server import EventStream
 from game.sim import GameUpdateEvents
+from game.theater.player import Player
 from .QLabeledWidget import QLabeledWidget
 from ..delegates import TwoColumnRowDelegate
 from ..models import AtoModel, GameModel, NullListModel, PackageModel
+
+PLANNING_LOCK_TOOLTIP = (
+    "A Claude commander is planning this ATO. Editing is available again once it "
+    "has finished."
+)
 
 
 class FlightDelegate(TwoColumnRowDelegate):
@@ -86,6 +92,7 @@ class QFlightList(QListView):
         self.setIconSize(QSize(91, 24))
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.doubleClicked.connect(self.on_double_click)
+        self.locked = False
 
     def set_package(self, model: Optional[PackageModel]) -> None:
         """Sets the package model to display."""
@@ -121,7 +128,7 @@ class QFlightList(QListView):
         return self.package_model.flight_at_index(index)
 
     def on_double_click(self, index: QModelIndex) -> None:
-        if not index.isValid():
+        if not index.isValid() or self.locked:
             return
         self.edit_flight(index)
 
@@ -153,6 +160,8 @@ class QFlightList(QListView):
         self.package_model.cancel_or_abort_flight_at_index(index)
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        if self.locked:
+            return
         index = self.indexAt(event.pos())
 
         menu = QMenu("Menu")
@@ -211,6 +220,7 @@ class QFlightPanel(QGroupBox):
         self.delete_button.clicked.connect(self.on_cancel_flight)
         self.button_row.addWidget(self.delete_button)
 
+        self.locked = False
         self.selection_changed.connect(self.on_selection_changed)
         self.on_selection_changed()
 
@@ -229,16 +239,28 @@ class QFlightPanel(QGroupBox):
     def on_selection_changed(self) -> None:
         """Updates the status of the edit and delete buttons."""
         index = self.flight_list.currentIndex()
-        enabled = index.isValid()
-        self.edit_button.setEnabled(enabled)
-        self.clone_button.setEnabled(enabled)
-        self.delete_button.setEnabled(enabled)
+        self.update_buttons()
         self.change_map_flight_selection(index)
         delete_text = "Cancel"
         if (flight := self.flight_list.selected_item) is not None:
             if not flight.state.cancelable:
                 delete_text = "Abort"
         self.delete_button.setText(delete_text)
+
+    def update_buttons(self) -> None:
+        enabled = self.flight_list.currentIndex().isValid() and not self.locked
+        self.edit_button.setEnabled(enabled)
+        self.clone_button.setEnabled(enabled)
+        self.delete_button.setEnabled(enabled)
+        tooltip = PLANNING_LOCK_TOOLTIP if self.locked else ""
+        for button in (self.edit_button, self.clone_button, self.delete_button):
+            button.setToolTip(tooltip)
+
+    def set_locked(self, locked: bool) -> None:
+        """Disables editing while a commander plans this ATO."""
+        self.locked = locked
+        self.flight_list.locked = locked
+        self.update_buttons()
 
     def change_map_flight_selection(self, index: QModelIndex) -> None:
         events = GameUpdateEvents()
@@ -319,6 +341,7 @@ class QPackageList(QListView):
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.model().rowsInserted.connect(self.on_new_packages)
         self.doubleClicked.connect(self.on_double_click)
+        self.locked = False
 
     @property
     def selected_item(self) -> Optional[Package]:
@@ -362,11 +385,13 @@ class QPackageList(QListView):
         )
 
     def on_double_click(self, index: QModelIndex) -> None:
-        if not index.isValid():
+        if not index.isValid() or self.locked:
             return
         self.edit_package(index)
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        if self.locked:
+            return
         index = self.indexAt(event.pos())
 
         menu = QMenu("Menu")
@@ -384,7 +409,7 @@ class QPackageList(QListView):
     def keyPressEvent(self, event: QKeyEvent) -> None:
         # Delete/Supr cancels (deletes) the selected package, so several can be
         # cleared in a row without reaching for the context menu each time.
-        if event.key() == Qt.Key.Key_Delete:
+        if event.key() == Qt.Key.Key_Delete and not self.locked:
             index = self.currentIndex()
             if index.isValid():
                 row = index.row()
@@ -443,6 +468,7 @@ class QPackagePanel(QGroupBox):
         self.delete_button.clicked.connect(self.on_delete)
         self.button_row.addWidget(self.delete_button)
 
+        self.locked = False
         self.current_changed.connect(self.on_current_changed)
         self.on_current_changed()
 
@@ -454,10 +480,7 @@ class QPackagePanel(QGroupBox):
     def on_current_changed(self) -> None:
         """Updates the status of the edit and delete buttons."""
         index = self.package_list.currentIndex()
-        enabled = index.isValid()
-        self.edit_button.setEnabled(enabled)
-        self.clone_button.setEnabled(enabled)
-        self.delete_button.setEnabled(enabled)
+        self.enable_buttons(index.isValid())
         self.change_map_package_selection(index)
 
     def change_map_package_selection(self, index: QModelIndex) -> None:
@@ -499,9 +522,19 @@ class QPackagePanel(QGroupBox):
         self.package_list.delete_package(index)
 
     def enable_buttons(self, enabled: bool) -> None:
+        enabled = enabled and not self.locked
         self.edit_button.setEnabled(enabled)
         self.clone_button.setEnabled(enabled)
         self.delete_button.setEnabled(enabled)
+        tooltip = PLANNING_LOCK_TOOLTIP if self.locked else ""
+        for button in (self.edit_button, self.clone_button, self.delete_button):
+            button.setToolTip(tooltip)
+
+    def set_locked(self, locked: bool) -> None:
+        """Disables editing while a commander plans this ATO."""
+        self.locked = locked
+        self.package_list.locked = locked
+        self.enable_buttons(self.package_list.currentIndex().isValid())
 
 
 class QAirTaskingOrderPanel(QSplitter):
@@ -534,6 +567,27 @@ class QAirTaskingOrderPanel(QSplitter):
 
         self.flight_panel = QFlightPanel(game_model)
         self.addWidget(self.flight_panel)
+
+        #: Sides whose commander is planning; their ATO can't be edited.
+        self.locked_sides: set[Player] = set()
+
+    @property
+    def displayed_side(self) -> Player:
+        return Player.RED if self.red_ato_checkbox.isChecked() else Player.BLUE
+
+    @property
+    def editing_locked(self) -> bool:
+        return self.displayed_side in self.locked_sides
+
+    def set_locked_sides(self, sides: set[Player]) -> None:
+        """Disables editing of the shown ATO while its commander plans."""
+        self.locked_sides = set(sides)
+        self.apply_lock()
+
+    def apply_lock(self) -> None:
+        locked = self.editing_locked
+        self.package_panel.set_locked(locked)
+        self.flight_panel.set_locked(locked)
 
     def select_flight_on_map(self, flight: Flight) -> None:
         """Selects the package and flight owning the given flight.
@@ -590,3 +644,4 @@ class QAirTaskingOrderPanel(QSplitter):
         events = GameUpdateEvents().deselect_flight()
         EventStream.put_nowait(events)
         self.game_model.is_ownfor = not opfor
+        self.apply_lock()
