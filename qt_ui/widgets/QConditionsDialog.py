@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton
 
 from game.sim import GameUpdateEvents
+from game.theater.player import Player
 from game.weather.clouds import Clouds
 from qt_ui.widgets.conditions.QTimeAdjustmentWidget import QTimeAdjustmentWidget
 from qt_ui.widgets.conditions.QTimeTurnWidget import QTimeTurnWidget
@@ -78,7 +79,19 @@ class QConditionsDialog(QDialog):
         self.weather.conditions.weather = new_weather
 
         self.weather.update_forecast()
-        if game.turn > 0 and current_time != qdt:
+        time_changed = current_time != qdt
+        change = (
+            f"Mission conditions were changed: start time {qdt:%Y-%m-%d %H:%M}, "
+            f"{new_weather_type.__name__} weather, clouds base "
+            f"{new_weather.clouds.base} m, density {new_weather.clouds.density}, "
+            f"precipitation {new_weather.clouds.precipitation.name}."
+        )
+        for player in (Player.BLUE, Player.RED):
+            # A time change re-initializes the turn below, which replans anyway.
+            game.notify_commander(
+                player, change, replan=game.turn > 0 and not time_changed
+            )
+        if game.turn > 0 and time_changed:
             events = GameUpdateEvents()
             game.initialize_turn(events, for_blue=True, for_red=True)
             sim.sim_update.emit(events)

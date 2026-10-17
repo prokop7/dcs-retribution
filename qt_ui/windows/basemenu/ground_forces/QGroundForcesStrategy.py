@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QGroupBox, QLabel, QPushButton, QVBoxLayout
 from game import Game
 from game.server import EventStream
 from game.sim.gameupdateevents import GameUpdateEvents
-from game.theater import ControlPoint
+from game.theater import ControlPoint, Player
 from qt_ui.windows.GameUpdateSignal import GameUpdateSignal
 from qt_ui.windows.basemenu.ground_forces.QGroundForcesStrategySelector import (
     QGroundForcesStrategySelector,
@@ -60,6 +60,8 @@ class QGroundForcesStrategy(QGroupBox):
         front_line = self.cp.front_line_with(enemy_point)
         front_line.update_position()
         events = GameUpdateEvents().update_front_line(front_line)
+        for player in (Player.BLUE, Player.RED):
+            self.game.notify_commander(player, f"{front_line.name} moved.")
         # Clear the ATO to replan missions affected by the front line.
         self.game.initialize_turn(events)
         EventStream.put_nowait(events)

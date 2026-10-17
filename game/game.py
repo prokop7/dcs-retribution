@@ -8,7 +8,7 @@ from copy import deepcopy
 from datetime import date, datetime, time, timedelta
 from enum import Enum
 from typing import Any, List, Optional, TYPE_CHECKING, Union, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from dcs.countries import (
     Switzerland,
@@ -116,6 +116,9 @@ class Game:
         self.settings = settings
         self.theater = theater
         self.campaign_name = campaign_name
+        # Identifies the campaign across all of its saves. Claude commanders keep one
+        # session per campaign and side, keyed by this id.
+        self.campaign_id = uuid4().hex
         self.turn = 0
         # NB: This is the *start* date. It is never updated.
         self.date = date(start_date.year, start_date.month, start_date.day)
@@ -174,6 +177,8 @@ class Game:
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         self.__dict__.update(state)
+        if not hasattr(self, "campaign_id"):
+            self.campaign_id = uuid4().hex
         # Heal carcass lists bloated by old saves. Guarded like laser_code_registry
         # below: __destroyed_units postdates the oldest saves, so a pre-2020 save
         # arrives without it and must not AttributeError here.
@@ -509,6 +514,27 @@ class Game:
             self.compute_unculled_zones(events)
 
         events.begin_new_turn()
+
+    def notify_commander(
+        self, player: Player, change: str, replan: bool = False
+    ) -> None:
+        """Tells a Claude commander about a change to the situation.
+
+        The change is delivered with the commander's next planning run. With
+        ``replan`` that run is requested right away; otherwise it is expected to be
+        triggered by a following ``initialize_turn``. Does nothing for sides not
+        commanded by Claude.
+        """
+        from game.claudecommander.coordinator import (
+            CommanderCoordinator,
+            commander_enabled,
+        )
+
+        if not commander_enabled(self, player):
+            return
+        self.coalition_for(player).commander.record_change(change)
+        if replan:
+            CommanderCoordinator.get().request(self, player)
 
     def message(self, title: str, text: str = "") -> None:
         self.informations.append(Information(title, text, turn=self.turn))

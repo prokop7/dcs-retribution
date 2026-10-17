@@ -397,6 +397,10 @@ def user_custom_weapon_injections_dir() -> Path:
     return _create_dir_if_needed(base_path() / "Retribution" / "WeaponInjections")
 
 
+def commander_dir() -> Path:
+    return _create_dir_if_needed(base_path() / "Retribution" / "Commander")
+
+
 def save_dir() -> Path:
     return _create_dir_if_needed(base_path() / "Retribution" / "Saves")
 

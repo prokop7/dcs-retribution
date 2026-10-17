@@ -13,6 +13,7 @@ from .choicesoption import choices_option
 from .minutesoption import minutes_option
 from .optiondescription import OptionDescription, SETTING_DESCRIPTION_KEY
 from .skilloption import skill_option
+from .stringoption import string_option
 from ..ato.starttype import StartType
 
 Views = ForcedOptions.Views
@@ -77,6 +78,11 @@ CAMPAIGN_DOCTRINE_PAGE = "Campaign Doctrine"
 DOCTRINE_DISTANCES_SECTION = "Doctrine distances"
 
 PRETENSE_PAGE = "Pretense"
+
+CLAUDE_COMMANDER_PAGE = "Claude Commander"
+CLAUDE_COMMANDERS_SECTION = "Commanders"
+CLAUDE_CODE_SECTION = "Claude Code"
+CLAUDE_DIRECTIVES_SECTION = "Directives"
 
 MISSION_GENERATOR_PAGE = "Mission Generator"
 
@@ -1689,6 +1695,87 @@ class Settings:
         default=2,
         min=1,
         max=20,
+    )
+
+    # Claude Commander
+    claude_commander_red: bool = boolean_option(
+        "Claude commands OPFOR",
+        page=CLAUDE_COMMANDER_PAGE,
+        section=CLAUDE_COMMANDERS_SECTION,
+        default=False,
+        detail=(
+            "Claude plans OPFOR's air packages, procurement, front line stances, "
+            "transfers and repairs instead of the built-in planner. Requires Claude "
+            "Code to be installed and signed in."
+        ),
+    )
+    claude_commander_blue: bool = boolean_option(
+        "Claude commands OWNFOR",
+        page=CLAUDE_COMMANDER_PAGE,
+        section=CLAUDE_COMMANDERS_SECTION,
+        default=False,
+        detail=(
+            "Claude plans your coalition's packages, which you can still edit. "
+            "Procurement, repairs and front line stances follow the HQ automation "
+            "settings: Claude only takes over what is automated."
+        ),
+    )
+    claude_commander_reveal_red: bool = boolean_option(
+        "Reveal OPFOR commander",
+        page=CLAUDE_COMMANDER_PAGE,
+        section=CLAUDE_COMMANDERS_SECTION,
+        default=False,
+        detail="Shows OPFOR's live planning log and journal. Reveals enemy intent.",
+    )
+    claude_commander_executable: str = string_option(
+        "Claude Code executable",
+        page=CLAUDE_COMMANDER_PAGE,
+        section=CLAUDE_CODE_SECTION,
+        default="claude",
+        detail="Command name or full path of the Claude Code CLI.",
+    )
+    claude_commander_model: str = string_option(
+        "Model",
+        page=CLAUDE_COMMANDER_PAGE,
+        section=CLAUDE_CODE_SECTION,
+        default="opus",
+        detail=(
+            "Model alias or full model name passed to Claude Code, for example "
+            "opus, sonnet or haiku."
+        ),
+    )
+    claude_commander_effort: str = choices_option(
+        "Thinking effort",
+        page=CLAUDE_COMMANDER_PAGE,
+        section=CLAUDE_CODE_SECTION,
+        default="high",
+        choices=["low", "medium", "high", "xhigh", "max"],
+    )
+    claude_commander_timeout_minutes: int = bounded_int_option(
+        "Planning time limit per side (minutes)",
+        page=CLAUDE_COMMANDER_PAGE,
+        section=CLAUDE_CODE_SECTION,
+        default=20,
+        min=1,
+        max=240,
+    )
+    claude_commander_red_directive: str = string_option(
+        "OPFOR commander directive",
+        page=CLAUDE_COMMANDER_PAGE,
+        section=CLAUDE_DIRECTIVES_SECTION,
+        default="",
+        multiline=True,
+        placeholder="e.g. Defend Krymsk at all costs. Conserve MiG-31s.",
+        detail="Standing orders given to the OPFOR commander every turn.",
+    )
+    claude_commander_blue_directive: str = string_option(
+        "OWNFOR commander directive",
+        page=CLAUDE_COMMANDER_PAGE,
+        section=CLAUDE_DIRECTIVES_SECTION,
+        default="",
+        multiline=True,
+        placeholder="e.g. Roll back the IADS in the north before striking airfields.",
+        detail="Standing orders given to your coalition's commander every turn.",
     )
 
     # Cheating. Not using auto settings because the same page also has buttons which do

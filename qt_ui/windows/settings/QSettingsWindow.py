@@ -15,7 +15,9 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QLabel,
+    QLineEdit,
     QListView,
+    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -37,6 +39,7 @@ from game.settings import (
     MinutesOption,
     OptionDescription,
     Settings,
+    StringOption,
 )
 from game.settings.ISettingsContainer import SettingsContainer
 from game.sim import GameUpdateEvents
@@ -173,6 +176,8 @@ class AutoSettingsLayout(QGridLayout):
                 self.add_spinner_for(row, name, description)
             elif isinstance(description, MinutesOption):
                 self.add_duration_controls_for(row, name, description)
+            elif isinstance(description, StringOption):
+                self.add_text_input_for(row, name, description)
             else:
                 raise TypeError(f"Unhandled option type: {description}")
 
@@ -268,6 +273,34 @@ class AutoSettingsLayout(QGridLayout):
         self.addLayout(inputs, row, 1, Qt.AlignmentFlag.AlignRight)
         self.settings_map[name] = inputs
 
+    def add_text_input_for(
+        self, row: int, name: str, description: StringOption
+    ) -> None:
+        widget: QLineEdit | QPlainTextEdit
+        if description.multiline:
+            text_edit = QPlainTextEdit(self.sc.settings.__dict__[name])
+            text_edit.setMinimumWidth(400)
+            text_edit.setMaximumHeight(120)
+
+            def on_text_changed() -> None:
+                self.sc.settings.__dict__[name] = text_edit.toPlainText()
+
+            text_edit.textChanged.connect(on_text_changed)
+            widget = text_edit
+        else:
+            line_edit = QLineEdit(self.sc.settings.__dict__[name])
+            line_edit.setMinimumWidth(250)
+
+            def on_line_changed(value: str) -> None:
+                self.sc.settings.__dict__[name] = value
+
+            line_edit.textChanged.connect(on_line_changed)
+            widget = line_edit
+        if description.placeholder is not None:
+            widget.setPlaceholderText(description.placeholder)
+        self.addWidget(widget, row, 1, Qt.AlignmentFlag.AlignRight)
+        self.settings_map[name] = widget
+
     def update_from_settings(self) -> None:
         for name, description in Settings.fields(self.page, self.section):
             widget = self.settings_map[name]
@@ -289,6 +322,12 @@ class AutoSettingsLayout(QGridLayout):
                 widget.setValue(value)
             elif isinstance(widget, TimeInputs):
                 widget.spinner.setValue(value.seconds // 60)
+            elif isinstance(widget, QPlainTextEdit):
+                if widget.toPlainText() != value:
+                    widget.setPlainText(value)
+            elif isinstance(widget, QLineEdit):
+                if widget.text() != value:
+                    widget.setText(value)
 
 
 class AutoSettingsGroup(QGroupBox):

@@ -183,6 +183,16 @@ class QBaseMenu2(QDialog):
 
     def cheat_capture(self) -> None:
         events = GameUpdateEvents()
+        game = self.game_model.game
+        if self.cp.is_fleet:
+            change = f"The carrier group {self.cp.name} was destroyed or restored."
+        else:
+            change = (
+                f"{self.cp.name} changed hands and is now held by "
+                f"{self.cp.captured.opponent.value}."
+            )
+        for player in (Player.BLUE, Player.RED):
+            game.notify_commander(player, change)
         if self.cp.is_fleet:
             for go in self.cp.ground_objects:
                 if go.is_naval_control_point:

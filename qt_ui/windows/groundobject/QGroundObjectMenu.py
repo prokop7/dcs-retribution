@@ -328,6 +328,18 @@ class QGroundObjectMenu(QDialog):
         events = GameUpdateEvents()
         events.update_tgo(self.ground_object)
         self.game.theater.iads_network.update_tgo(self.ground_object, events)
+        owner = self.ground_object.coalition.player
+        self.game.notify_commander(
+            owner,
+            f"HQ bought, sold or repaired units at your site {self.ground_object.name}.",
+            replan=True,
+        )
+        self.game.notify_commander(
+            owner.opponent,
+            f"Enemy site {self.ground_object.name} changed: units were added, "
+            "removed or repaired.",
+            replan=True,
+        )
         if any(
             package.target == self.ground_object
             for package in self.game.ato_for(player=Player.RED).packages

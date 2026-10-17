@@ -913,6 +913,9 @@ class AirWingConfigurationDialog(QDialog):
         c.configure_default_air_wing(config)
         w.revert()
         if c.game.turn != 0:
+            c.game.notify_commander(
+                c.player, "Your air wing configuration was changed by HQ."
+            )
             events = GameUpdateEvents()
             c.initialize_turn(False, events)
             EventStream.put_nowait(events)
@@ -925,6 +928,10 @@ class AirWingConfigurationDialog(QDialog):
         for tab in self.tabs:
             tab.apply()
             if tab.coalition.game.turn != 0:
+                tab.coalition.game.notify_commander(
+                    tab.coalition.player,
+                    "Your air wing configuration was changed by HQ.",
+                )
                 events = GameUpdateEvents()
                 tab.coalition.initialize_turn(False, events)
                 EventStream.put_nowait(events)

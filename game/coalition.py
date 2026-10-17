@@ -6,6 +6,7 @@ from typing import Any, Optional, TYPE_CHECKING
 from game.armedforces.armedforces import ArmedForces
 from game.ato.airtaaskingorder import AirTaskingOrder
 from game.campaignloader.defaultsquadronassigner import DefaultSquadronAssigner
+from game.claudecommander.state import CommanderState
 from game.commander import TheaterCommander
 from game.commander.missionscheduler import MissionScheduler
 from game.income import Income
@@ -44,6 +45,7 @@ class Coalition:
         self.air_wing = AirWing(player, game, self.faction)
         self.armed_forces = ArmedForces(self.faction)
         self.transfers = PendingTransfers(game, player)
+        self.commander = CommanderState()
 
         # Late initialized because the two coalitions in the game are mutually
         # dependent, so must be both constructed before this property can be set.
@@ -109,6 +111,9 @@ class Coalition:
                 state["player"] = Player.BLUE
             else:
                 state["player"] = Player.RED
+
+        if "commander" not in state:
+            state["commander"] = CommanderState()
 
         self.__dict__.update(state)
 
@@ -176,6 +181,10 @@ class Coalition:
         For more information on turn initialization in general, see the documentation
         for `Game.initialize_turn`.
         """
+        if self.claude_commanded:
+            self._initialize_turn_for_claude(events)
+            return
+
         # Needs to happen *before* planning transfers so we don't cancel them.
         self.ato.clear()
         self.air_wing.reset()
@@ -190,6 +199,74 @@ class Coalition:
             self.transfers.plan_transports(self.game.conditions.start_time)
 
         if not is_turn_0:
+            self.plan_missions(self.game.conditions.start_time)
+        self.plan_procurement(events)
+
+    @property
+    def claude_commanded(self) -> bool:
+        from game.claudecommander.coordinator import commander_enabled
+
+        return commander_enabled(self.game, self.player)
+
+    def _initialize_turn_for_claude(self, events: GameUpdateEvents) -> None:
+        """Turn initialization for a side planned by Claude.
+
+        At the start of a turn the ATO is cleared like for the built-in planner. When
+        the turn is re-initialized after a change (a base capture, a bought SAM, new
+        conditions, ...) the commander's plan is kept and only packages the change
+        made impossible are dropped; the commander is then asked to adjust its plan.
+        Orders are never refunded: procurement is the commander's decision.
+        """
+        from game.claudecommander.coordinator import CommanderCoordinator
+
+        coordinator = CommanderCoordinator.get()
+        new_turn = self.commander.planned_turn != self.game.turn
+        if new_turn and not coordinator.is_planning(self.player):
+            self.ato.clear()
+            self.air_wing.reset()
+        else:
+            self.drop_invalid_packages(events)
+        self.procurement_requests.clear()
+
+        with logged_duration("Transit network identification"):
+            self.update_transit_network()
+        with logged_duration("Procurement of airlift assets"):
+            self.transfers.order_airlift_assets()
+        with logged_duration("Transport planning"):
+            self.transfers.plan_transports(self.game.conditions.start_time)
+
+        coordinator.request(self.game, self.player)
+
+    def drop_invalid_packages(self, events: GameUpdateEvents) -> list[str]:
+        """Removes packages whose target or departure no longer fits this side.
+
+        Returns descriptions of the removed packages.
+        """
+        removed: list[str] = []
+        for package in list(self.ato.packages):
+            target_valid = package.primary_task in set(
+                package.target.mission_types(self.player)
+            )
+            departures_valid = all(
+                f.departure.is_friendly(self.player) for f in package.flights
+            )
+            if target_valid and departures_valid:
+                continue
+            events.delete_flights_in_package(package)
+            self.ato.remove_package(package)
+            removed.append(f"{package.primary_task} package against {package.target}")
+        for description in removed:
+            self.commander.record_change(
+                f"Removed your {description}: its target or base changed hands."
+            )
+        return removed
+
+    def run_builtin_planning(self, events: GameUpdateEvents) -> None:
+        """Plans this turn with the built-in planner, for when Claude can't."""
+        self.ato.clear()
+        self.air_wing.reset()
+        self.procurement_requests.clear()
+        if self.game.turn > 0:
             self.plan_missions(self.game.conditions.start_time)
         self.plan_procurement(events)
 
