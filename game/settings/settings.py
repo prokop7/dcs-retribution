@@ -727,6 +727,18 @@ class Settings:
             "menu. Set to 0 for instant repairs."
         ),
     )
+    naval_repair_turns: int = bounded_int_option(
+        "Ship repair turns",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        HQ_AUTOMATION_SECTION,
+        min=0,
+        max=20,
+        default=6,
+        detail=(
+            "Turns before a repaired ship of a naval group returns to service. A "
+            "sunk warship takes far longer to bring back than a ground unit."
+        ),
+    )
     automate_building_repairs: bool = boolean_option(
         "Automate building repairs",
         CAMPAIGN_MANAGEMENT_PAGE,

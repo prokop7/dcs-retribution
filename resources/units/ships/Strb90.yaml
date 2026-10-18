@@ -1,5 +1,5 @@
 class: Destroyer
-price: 0
+price: 3
 variants:
   Strb 90 FAC: null
   "[CH] Strb 90 FAC": null

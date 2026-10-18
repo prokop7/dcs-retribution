@@ -1,4 +1,4 @@
 class: Submarine
-price: 0
+price: 15
 variants:
   U-boat VIIC U-flak: null

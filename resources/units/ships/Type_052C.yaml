@@ -1,4 +1,4 @@
 class: Destroyer
-price: 0
+price: 100
 variants:
   Type 052C Destroyer: null

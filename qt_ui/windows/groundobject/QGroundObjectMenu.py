@@ -287,7 +287,7 @@ class QGroundObjectMenu(QDialog):
         return total
 
     def repair_unit(self, unit, price):
-        self._repair(unit, price, self.game.settings.ground_object_repair_turns)
+        self._repair(unit, price, unit.repair_turns(self.game.settings))
 
     def repair_building(self, unit, price):
         self._repair(unit, price, self.game.settings.building_repair_turns)

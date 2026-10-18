@@ -1,4 +1,4 @@
 class: Boat
-price: 0
+price: 10
 variants:
   Tanker Elnya 160: null

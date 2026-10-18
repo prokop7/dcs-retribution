@@ -18,6 +18,7 @@ from game.utils import Heading, Distance, meters
 
 if TYPE_CHECKING:
     from game.layout.layout import LayoutUnit
+    from game.settings import Settings
     from game.sim import GameUpdateEvents
     from game.theater.theatergroundobject import TheaterGroundObject
 
@@ -109,6 +110,12 @@ class TheaterUnit:
         if self.ground_object.is_iads:
             iads = self.ground_object.control_point.coalition.game.theater.iads_network
             iads.update_tgo(self.ground_object, events)
+
+    def repair_turns(self, settings: Settings) -> int:
+        """Turns a repair of this unit takes: ships take the naval repair time."""
+        if self.is_ship:
+            return settings.naval_repair_turns
+        return settings.ground_object_repair_turns
 
     def begin_repair(self, turns: int, events: GameUpdateEvents) -> None:
         """Starts repairing this dead unit.

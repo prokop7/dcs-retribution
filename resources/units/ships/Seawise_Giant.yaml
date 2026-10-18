@@ -1,4 +1,4 @@
 class: Boat
-price: 0
+price: 15
 variants:
   Tanker Seawise Giant: null

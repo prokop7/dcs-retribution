@@ -1,5 +1,5 @@
 class: Boat
-price: 0
+price: 5
 variants:
   VAP - US Sea Float Barge: null
   # Legacy VAP mod naming without VWV

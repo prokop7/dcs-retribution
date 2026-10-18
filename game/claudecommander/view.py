@@ -727,13 +727,15 @@ class CommanderView:
             **position(tgo.position),
         }
 
-    @staticmethod
-    def _dead_unit_json(unit: TheaterUnit) -> Json:
+    def _dead_unit_json(self, unit: TheaterUnit) -> Json:
         """A dead unit of an own site, named so repair tools can address it."""
         result: Json = {"unit": unit.name, "type": _unit_label(unit)}
         if unit.repair_turns_remaining is not None:
             result["repair_turns_remaining"] = unit.repair_turns_remaining
-        elif not unit.repairable and not unit.is_static:
+        elif unit.repairable and unit.unit_type is not None:
+            result["repair_cost"] = unit.unit_type.price
+            result["repair_turns"] = unit.repair_turns(self.game.settings)
+        elif not unit.is_static:
             result["repairable"] = False
         return result
 

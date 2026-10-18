@@ -1,4 +1,4 @@
 class: AircraftCarrier
-price: 0
+price: 350
 variants:
   CVN-73 George Washington: null

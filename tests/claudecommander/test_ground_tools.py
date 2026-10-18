@@ -176,6 +176,47 @@ def test_repair_runway(game: Game) -> None:
     )
 
 
+def test_every_ship_has_a_price() -> None:
+    from game.dcs.shipunittype import ShipUnitType
+
+    ships = [
+        ship
+        for dcs_type in ShipUnitType.each_dcs_type()
+        for ship in ShipUnitType.for_dcs_type(dcs_type)
+    ]
+    assert len(ships) > 50
+    free = [ship.variant_id for ship in ships if ship.price <= 0]
+    assert not free, free
+
+
+def test_ship_repairs_cost_the_ship_and_take_the_naval_repair_time(
+    game: Game,
+) -> None:
+    from dcs.ships import TICONDEROG
+
+    caller = Caller(game, Player.RED)
+    game.red.budget = 5000
+    game.settings.naval_repair_turns = 7
+    # The test campaign has no naval group: a SAM unit stands in for a ship.
+    sam = own_site(game, Player.RED, SamGroundObject)
+    ship = next(u for u in sam.units if u.repairable)
+    ship.type = TICONDEROG
+    ship.alive = False
+    assert ship.unit_type is not None and ship.unit_type.price >= 100
+
+    sites = caller.ok("get_own_forces", {"kind": "ground_objects", "limit": 100})
+    entry = next(s for s in sites["ground_objects"] if s["id"] == str(sam.id))
+    dead = next(d for d in entry["dead_units"] if d["unit"] == ship.name)
+    assert dead["repair_cost"] == ship.unit_type.price
+    assert dead["repair_turns"] == 7
+
+    data = caller.ok("repair_site", {"tgo_id": str(sam.id), "unit_ids": [ship.name]})
+    assert data["cost"] == ship.unit_type.price
+    assert data["in_service_in_turns"] == 7
+    assert ship.repair_turns_remaining == 7
+    assert game.red.budget == pytest.approx(5000 - ship.unit_type.price)
+
+
 def test_repair_site_and_building(game: Game) -> None:
     caller = Caller(game, Player.RED)
     game.red.budget = 5000

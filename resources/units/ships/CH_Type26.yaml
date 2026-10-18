@@ -3,7 +3,7 @@ description: Type 26 is the Royal Navy's next-generation anti-submarine frigate 
 introduced: 2028
 manufacturer: BAE Systems
 origin: United Kingdom
-price: 0
+price: 90
 role: Guided Missile Frigate
 variants:
   "[CH] Type 26 Frigate": null

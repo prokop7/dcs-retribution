@@ -1,4 +1,4 @@
 class: Boat
-price: 0
+price: 10
 variants:
   Supply Ship MV Tilde: null

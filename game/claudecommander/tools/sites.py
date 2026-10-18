@@ -406,7 +406,7 @@ class RepairSiteArgs(BaseModel):
     "repair_site",
     "Pays to repair dead units of one of your sites (SAMs, EWRs, armor, ships); "
     "each costs its unit price and returns to service after the configured repair "
-    "time. All or nothing. Returns the cost, the repair time and the remaining "
+    "time, which is much longer for ships. All or nothing. Returns the cost, the repair time and the remaining "
     "budget.",
     RepairSiteArgs,
 )
@@ -454,10 +454,11 @@ def repair_site(context: CommanderContext, args: RepairSiteArgs) -> Json:
             f"Repairing {len(candidates)} units costs {cost}M; you have "
             f"{_budget(view)}M."
         )
-    turns = context.game.settings.ground_object_repair_turns
+    settings = context.game.settings
+    turns = max(unit.repair_turns(settings) for unit in candidates)
     view.coalition.budget -= cost
     for unit in candidates:
-        unit.begin_repair(turns, context.events)
+        unit.begin_repair(unit.repair_turns(settings), context.events)
     _site_changed(context, tgo, "units are being repaired")
     return {
         "site": tgo.name,

@@ -1,5 +1,5 @@
 class: AircraftCarrier
-price: 0
+price: 200
 variants:
   ARA Vienticinco de Mayo: {}
   ARA Veinticinco de Mayo: {}

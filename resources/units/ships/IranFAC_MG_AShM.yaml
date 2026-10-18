@@ -3,7 +3,7 @@ description: "The IRGCN FAC AShM variant is a fast Iranian attack craft armed wi
 introduced: 2004
 manufacturer: Iran
 origin: Iran
-price: 0
+price: 6
 role: Fast Attack Craft
 variants:
   "[CH] IRGCN FAC AShM": {}

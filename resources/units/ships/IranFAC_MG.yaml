@@ -3,7 +3,7 @@ description: "The IRGCN FAC MANPADS variant is a fast Iranian attack craft armed
 introduced: 2004
 manufacturer: Iran
 origin: Iran
-price: 0
+price: 3
 role: Fast Attack Craft
 variants:
   "[CH] IRGCN FAC MANPADS": {}
