@@ -13,7 +13,7 @@ from game.claudecommander.events import (
     parse_line,
     user_message,
 )
-from game.claudecommander.journal import CommanderJournal
+from game.claudecommander.journal import CommanderJournal, newest_turn_first
 from game.claudecommander.process import (
     ClaudeRunResult,
     SessionArgs,
@@ -133,6 +133,25 @@ def test_write_mcp_config(tmp_path: Path) -> None:
         "url": "http://127.0.0.1:1/mcp/red",
         "headers": {"Authorization": "Bearer tok"},
     }
+
+
+def test_newest_turn_first_keeps_each_turns_order() -> None:
+    text = (
+        "## Turn 1 — Plan\n\nA\n"
+        "## Turn 1 — Summary\n\nB\n"
+        "## Turn 2 — Debrief\n\nC\n"
+        "## Turn 2 — Plan\n\nD\n"
+    )
+    titles = [
+        line for line in newest_turn_first(text).splitlines() if line.startswith("##")
+    ]
+    assert titles == [
+        "## Turn 2 — Debrief",
+        "## Turn 2 — Plan",
+        "## Turn 1 — Plan",
+        "## Turn 1 — Summary",
+    ]
+    assert newest_turn_first("*nothing yet*") == "*nothing yet*"
 
 
 def test_journal_append_render_and_rewind(tmp_path: Path) -> None:

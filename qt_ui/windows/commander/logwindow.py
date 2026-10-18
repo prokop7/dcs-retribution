@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QCloseEvent, QTextCursor
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QCloseEvent, QShowEvent, QTextCursor
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from game.claudecommander.coordinator import commander_journal
+from game.claudecommander.journal import newest_turn_first
 from game.theater.player import Player
 from qt_ui.windows.commander.bridge import CommanderBridge, side_label
 from qt_ui.windows.commander.logformat import LogKind, LogLine, line_html
@@ -41,6 +42,7 @@ class CommanderLogWindow(QDialog):
         self.player = player
         self.journal_source = journal_source or self._read_journal
         self._placeholder = True
+        self._journal_scroll_pending = False
 
         self.setWindowTitle(f"{side_label(player)} commander")
         self.setMinimumSize(720, 520)
@@ -74,11 +76,16 @@ class CommanderLogWindow(QDialog):
         self.refresh_button = QPushButton("Refresh")
         self.refresh_button.clicked.connect(self.refresh_journal)
         journal_controls.addWidget(self.refresh_button)
+        self.newest_first = QCheckBox("Newest turn first")
+        self.newest_first.setChecked(True)
+        self.newest_first.toggled.connect(self.refresh_journal)
+        journal_controls.addWidget(self.newest_first)
         journal_controls.addStretch(1)
         journal_layout.addLayout(journal_controls)
         self.journal_view = QTextBrowser()
         journal_layout.addWidget(self.journal_view)
         self.tabs.addTab(journal, "Journal")
+        self.tabs.currentChanged.connect(lambda _: self._apply_journal_scroll())
 
         bridge.line_added.connect(self.on_line_added)
         self.render_live()
@@ -124,7 +131,34 @@ class CommanderLogWindow(QDialog):
             text = self.journal_source(self.player)
         except OSError as ex:
             text = f"*Could not read the journal: {ex}*"
+        newest_first = self.newest_first.isChecked()
+        if newest_first:
+            text = newest_turn_first(text)
         self.journal_view.setMarkdown(text.strip() or EMPTY_JOURNAL)
+        self._journal_scroll_pending = True
+        self._apply_journal_scroll()
+
+    def _apply_journal_scroll(self) -> None:
+        # The view is laid out only while visible, so a refresh made in the
+        # background scrolls when the journal tab is next shown. After that the
+        # reader's position is left alone.
+        if not self._journal_scroll_pending or not self.journal_view.isVisible():
+            return
+        self._journal_scroll_pending = False
+        self._scroll_journal_to_latest()
+        QTimer.singleShot(0, self._scroll_journal_to_latest)
+
+    def _scroll_journal_to_latest(self) -> None:
+        """Shows the latest turn: at the top, or at the end in turn order."""
+        bar = self.journal_view.verticalScrollBar()
+        if self.newest_first.isChecked():
+            bar.setValue(bar.minimum())
+        else:
+            bar.setValue(bar.maximum())
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        self._apply_journal_scroll()
 
     def live_text(self) -> str:
         return self.live_view.toPlainText()

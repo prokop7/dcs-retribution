@@ -254,6 +254,27 @@ def test_log_window(bridge: CommanderBridge, coordinator: FakeCoordinator) -> No
     QCoreApplication.processEvents()
     assert "red stuff" not in window.live_text()
 
+    # The latest turn is shown first, at the top; in turn order, at the end.
+    entries = "".join(
+        f"## Turn {turn} — Intent\n\n" + f"Turn {turn} paragraph.\n\n" * 40
+        for turn in range(1, 6)
+    )
+    long = CommanderLogWindow(bridge, Player.BLUE, journal_source=lambda p: entries)
+    long.resize(720, 520)
+    long.show()
+    long.tabs.setCurrentIndex(1)
+    QCoreApplication.processEvents()
+    text = long.journal_text()
+    assert text.index("Turn 5") < text.index("Turn 1")
+    bar = long.journal_view.verticalScrollBar()
+    assert bar.maximum() > 0 and bar.value() == 0
+    long.newest_first.setChecked(False)
+    QCoreApplication.processEvents()
+    text = long.journal_text()
+    assert text.index("Turn 1") < text.index("Turn 5")
+    assert bar.value() == bar.maximum()
+    long.close()
+
     empty = CommanderLogWindow(bridge, Player.BLUE, journal_source=lambda p: "")
     assert empty.journal_text() == EMPTY_JOURNAL.strip("*")
     window.close()

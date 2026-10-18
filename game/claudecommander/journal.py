@@ -49,6 +49,23 @@ def parse_entries(text: str) -> list[JournalEntry]:
     return entries
 
 
+def newest_turn_first(text: str) -> str:
+    """Reorders journal Markdown so the latest turn comes first. A turn's own
+    entries (debrief, plan, summary) keep their order. Text without entries is
+    returned unchanged."""
+    entries = parse_entries(text)
+    if not entries:
+        return text
+    by_turn: dict[int, list[JournalEntry]] = {}
+    for entry in entries:
+        by_turn.setdefault(entry.turn, []).append(entry)
+    return "\n".join(
+        entry.render()
+        for turn in sorted(by_turn, reverse=True)
+        for entry in by_turn[turn]
+    )
+
+
 class CommanderJournal:
     def __init__(self, path: Path, heading: str) -> None:
         self.path = path
