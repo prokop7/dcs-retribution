@@ -10,18 +10,27 @@ module turns it into what one side may learn from the mission:
 * for each of its own packages, the flights' losses and the confirmed damage at
   the package's target;
 * the enemy aircraft types it encountered, which also feed the enemy order of
-  battle hook (``EnemySighting``).
+  battle hook (``EnemySighting``);
+* the weapon feed, when the mission recorded it: per own package, what each
+  aircraft type fired and what became of each weapon (hit, intercepted and by
+  which enemy defense, no hit), what it hit; enemy launches aimed at its own
+  aircraft (launcher type, weapon, hits), as RWR/MAWS would show them; and what
+  its own air defenses fired at enemy aircraft and weapons, with hits and
+  intercepts.
 
 The game reports every enemy loss of the mission, so every enemy loss counts as
 confirmed. The summary never reveals the enemy's plans, remaining forces or
-budget.
+budget. From the weapon feed it never reveals enemy shots at anything but its
+own aircraft (beyond the enemy defenses that engaged its own weapons), nor
+enemy unit names: enemy launchers and defenses appear by type only.
 """
 
 from __future__ import annotations
 
 import math
 from collections import Counter
-from typing import Any, Iterable, Optional, Sequence, TYPE_CHECKING, TypeVar
+from dataclasses import dataclass, field as dataclass_field
+from typing import Any, Iterable, Iterator, Optional, Sequence, TYPE_CHECKING, TypeVar
 
 from dcs.mapping import Point
 
@@ -32,8 +41,15 @@ from game.theater.player import Player
 from game.theater.theatergroundobject import TheaterGroundObject
 
 if TYPE_CHECKING:
+    from game.ato.flight import Flight
     from game.ato.package import Package
-    from game.debriefing import Debriefing, KillRecord
+    from game.debriefing import (
+        Debriefing,
+        HitRecord,
+        KillRecord,
+        ShotRecord,
+        WeaponFate,
+    )
     from game.unitmap import FlyingUnit, TheaterUnitMapping, SceneryObjectMapping
 
 T = TypeVar("T")
@@ -311,6 +327,335 @@ def _loss_attribution(debriefing: Debriefing, player: Player) -> dict[str, Any]:
     }
 
 
+#: DCS coalition ids.
+_DCS_COALITIONS = {1: Player.RED, 2: Player.BLUE}
+_MAX_WEAPON_LINES_PER_PACKAGE = 10
+_MAX_WEAPON_LINES = 15
+_MAX_BREAKDOWN = 5
+
+WEAPON_FEED_NOTE = (
+    "Intercepts are inferred: a defending missile fired at the weapon ended with "
+    "it. 'no hit' means DCS reported no hit (a miss, a decoyed weapon, or blast "
+    "damage DCS did not report as a hit). 'unresolved' weapons were still flying "
+    "at mission end or were not tracked."
+)
+
+
+def _weapon_label(name: Optional[str]) -> str:
+    if not name:
+        return "unknown weapon"
+    if name.startswith("weapons."):
+        return name.rsplit(".", 1)[-1]
+    return name
+
+
+def _top(counts: Counter[str]) -> dict[str, int]:
+    return dict(counts.most_common(_MAX_BREAKDOWN))
+
+
+@dataclass
+class _Tally:
+    fired: int = 0
+    outcomes: Counter[str] = dataclass_field(default_factory=Counter)
+    intercepted_by: Counter[str] = dataclass_field(default_factory=Counter)
+    targets_hit: Counter[str] = dataclass_field(default_factory=Counter)
+    targets: Counter[str] = dataclass_field(default_factory=Counter)
+    weapons_targeted: Counter[str] = dataclass_field(default_factory=Counter)
+    engaged: int = 0
+    intercepts: int = 0
+    ranges_m: list[float] = dataclass_field(default_factory=list)
+
+    def outcome_counts(self) -> dict[str, int]:
+        return {
+            "fired": self.fired,
+            "hit": self.outcomes["hit"],
+            "intercepted": self.outcomes["intercepted"],
+            "no_hit": self.outcomes["no_hit"],
+            "unresolved": self.outcomes["unresolved"],
+        }
+
+
+class _WeaponFeed:
+    """A mission's weapon feed (shots, hits, weapon fates), indexed for one side."""
+
+    def __init__(self, debriefing: Debriefing, player: Player) -> None:
+        state = getattr(debriefing, "state_data", None)
+        self.shots: list[ShotRecord] = list(getattr(state, "shot_records", []))
+        self.hits: list[HitRecord] = list(getattr(state, "hit_records", []))
+        fates: list[WeaponFate] = list(getattr(state, "weapon_fates", []))
+        self.unit_map = getattr(debriefing, "unit_map", None)
+        self.player = player
+        self.shot_by_id = {shot.id: shot for shot in self.shots}
+        self.fate_by_shot = {fate.shot: fate for fate in fates}
+        self.hits_by_shot: dict[int, list[HitRecord]] = {}
+        for hit in self.hits:
+            if hit.shot is not None:
+                self.hits_by_shot.setdefault(hit.shot, []).append(hit)
+        self.intercepts_by_defender: Counter[int] = Counter(
+            fate.intercepted_by.shot
+            for fate in fates
+            if fate.fate == "intercepted"
+            and fate.intercepted_by is not None
+            and fate.intercepted_by.shot is not None
+        )
+
+    def flight(self, unit_name: Optional[str]) -> Optional[Flight]:
+        lookup = getattr(self.unit_map, "flight", None)
+        if not unit_name or lookup is None:
+            return None
+        unit = lookup(unit_name)
+        return unit.flight if unit is not None else None
+
+    def site_unit(self, unit_name: Optional[str]) -> Optional[TheaterUnitMapping]:
+        lookup = getattr(self.unit_map, "theater_units", None)
+        if not unit_name or lookup is None:
+            return None
+        return lookup(unit_name)
+
+    def shooter_side(self, shot: ShotRecord) -> Optional[Player]:
+        if shot.shooter_coalition in _DCS_COALITIONS:
+            return _DCS_COALITIONS[shot.shooter_coalition]
+        flight = self.flight(shot.shooter)
+        if flight is not None:
+            return flight.squadron.player
+        site = self.site_unit(shot.shooter)
+        if site is not None:
+            return site.theater_unit.ground_object.control_point.captured
+        return None
+
+    def outcome(self, shot: ShotRecord) -> str:
+        fate = self.fate_by_shot.get(shot.id)
+        if shot.id in self.hits_by_shot or (fate is not None and fate.fate == "hit"):
+            return "hit"
+        return fate.fate if fate is not None else "unresolved"
+
+    def describe_unit(self, name: Optional[str], dcs_type: Optional[str]) -> str:
+        flight = self.flight(name)
+        if flight is not None:
+            return flight.unit_type.variant_id
+        site = self.site_unit(name)
+        if site is not None and site.theater_unit.unit_type is not None:
+            return site.theater_unit.unit_type.variant_id
+        return _describe_killer(dcs_type)[0]
+
+    def describe_launcher(self, name: Optional[str], dcs_type: Optional[str]) -> str:
+        flight = self.flight(name)
+        if flight is not None:
+            return f"{flight.unit_type.variant_id} (aircraft)"
+        site = self.site_unit(name)
+        if site is not None and site.theater_unit.unit_type is not None:
+            category = "ship" if site.theater_unit.is_ship else "air defense"
+            return f"{site.theater_unit.unit_type.variant_id} ({category})"
+        label, category = _describe_killer(dcs_type)
+        return label if category == "unknown" else f"{label} ({category})"
+
+    def is_own_aircraft(
+        self, name: Optional[str], dcs_type: Optional[str], coalition: Optional[int]
+    ) -> bool:
+        flight = self.flight(name)
+        if flight is not None:
+            return flight.squadron.player is self.player
+        return (
+            _DCS_COALITIONS.get(coalition or 0) is self.player
+            and _describe_killer(dcs_type)[1] == "aircraft"
+        )
+
+    def own_aircraft_shots(self) -> Iterator[tuple[ShotRecord, Flight]]:
+        for shot in self.shots:
+            flight = self.flight(shot.shooter)
+            if flight is not None and flight.squadron.player is self.player:
+                yield shot, flight
+
+    def weapon_of_shot(self, shot_id: Optional[int], fallback: Optional[str]) -> str:
+        shot = self.shot_by_id.get(shot_id) if shot_id is not None else None
+        if shot is not None:
+            return _weapon_label(shot.weapon_name)
+        return _weapon_label(fallback)
+
+
+def _own_weapon_use(feed: _WeaponFeed) -> list[dict[str, Any]]:
+    """Per own package: what each aircraft type fired and what became of it."""
+    by_package: dict[Package, dict[tuple[str, str, str], _Tally]] = {}
+    for shot, flight in feed.own_aircraft_shots():
+        key = (
+            flight.unit_type.variant_id,
+            flight.flight_type.value,
+            _weapon_label(shot.weapon_name),
+        )
+        tally = by_package.setdefault(flight.package, {}).setdefault(key, _Tally())
+        tally.fired += 1
+        outcome = feed.outcome(shot)
+        tally.outcomes[outcome] += 1
+        fate = feed.fate_by_shot.get(shot.id)
+        if fate is not None and fate.engaged_by:
+            tally.engaged += 1
+        if outcome == "intercepted" and fate is not None:
+            defender = fate.intercepted_by
+            if defender is not None:
+                label = feed.describe_unit(defender.shooter, defender.shooter_type)
+                weapon = feed.weapon_of_shot(defender.shot, defender.weapon)
+                if weapon != _weapon_label(None):
+                    label += f" ({weapon})"
+                tally.intercepted_by[label] += 1
+        for hit in feed.hits_by_shot.get(shot.id, []):
+            if not hit.target_is_weapon:
+                tally.targets_hit[feed.describe_unit(hit.target, hit.target_type)] += 1
+        if shot.range_m is not None:
+            tally.ranges_m.append(shot.range_m)
+
+    results = []
+    for package, tallies in by_package.items():
+        primary = package.primary_task
+        weapons = []
+        for (aircraft, task, weapon), tally in sorted(
+            tallies.items(), key=lambda item: -item[1].fired
+        )[:_MAX_WEAPON_LINES_PER_PACKAGE]:
+            line: dict[str, Any] = {
+                "aircraft": aircraft,
+                "task": task,
+                "weapon": weapon,
+                **tally.outcome_counts(),
+            }
+            if tally.engaged:
+                line["engaged_by_defenses"] = tally.engaged
+            if tally.intercepted_by:
+                line["intercepted_by"] = _top(tally.intercepted_by)
+            if tally.targets_hit:
+                line["targets_hit"] = _top(tally.targets_hit)
+            if tally.ranges_m:
+                average = sum(tally.ranges_m) / len(tally.ranges_m)
+                line["avg_launch_range_nm"] = round(average / 1852, 1)
+            weapons.append(line)
+        results.append(
+            {
+                "package_id": PACKAGE_IDS.id_for(package),
+                "task": primary.value if primary is not None else None,
+                "target": package.target.name,
+                "weapons": weapons,
+            }
+        )
+    return results
+
+
+def _enemy_fire_at_own_aircraft(feed: _WeaponFeed) -> list[dict[str, Any]]:
+    """Enemy launches aimed at this side's aircraft (what RWR/MAWS would show)."""
+    tallies: dict[tuple[str, str], _Tally] = {}
+    for shot in feed.shots:
+        if feed.shooter_side(shot) is not feed.player.opponent:
+            continue
+        if shot.target_is_weapon or not feed.is_own_aircraft(
+            shot.target, shot.target_type, shot.target_coalition
+        ):
+            continue
+        key = (
+            feed.describe_launcher(shot.shooter, shot.shooter_type),
+            _weapon_label(shot.weapon_name),
+        )
+        tally = tallies.setdefault(key, _Tally())
+        tally.fired += 1
+        tally.outcomes[feed.outcome(shot)] += 1
+        tally.targets[feed.describe_unit(shot.target, shot.target_type)] += 1
+        if shot.range_m is not None:
+            tally.ranges_m.append(shot.range_m)
+    results = []
+    for (launcher, weapon), tally in sorted(
+        tallies.items(), key=lambda item: -item[1].fired
+    )[:_MAX_WEAPON_LINES]:
+        line: dict[str, Any] = {
+            "launcher": launcher,
+            "weapon": weapon,
+            "fired": tally.fired,
+            "hit": tally.outcomes["hit"],
+            "at": _top(tally.targets),
+        }
+        if tally.ranges_m:
+            average = sum(tally.ranges_m) / len(tally.ranges_m)
+            line["avg_launch_range_nm"] = round(average / 1852, 1)
+        results.append(line)
+    return results
+
+
+def _own_air_defense(feed: _WeaponFeed) -> list[dict[str, Any]]:
+    """Shots by this side's ground units and ships at aircraft and weapons."""
+    tallies: dict[tuple[str, str, str], _Tally] = {}
+    for shot in feed.shots:
+        if feed.shooter_side(shot) is not feed.player:
+            continue
+        if feed.flight(shot.shooter) is not None:
+            continue
+        if shot.target_is_weapon:
+            target_kind = "weapon"
+        elif shot.target and (
+            feed.flight(shot.target) is not None
+            or _describe_killer(shot.target_type)[1] == "aircraft"
+        ):
+            target_kind = "aircraft"
+        elif shot.missile_category == "SAM":
+            target_kind = "other"
+        else:
+            continue
+        site = feed.site_unit(shot.shooter)
+        site_name = site.theater_unit.ground_object.name if site else "unlisted unit"
+        key = (
+            site_name,
+            feed.describe_unit(shot.shooter, shot.shooter_type),
+            _weapon_label(shot.weapon_name),
+        )
+        tally = tallies.setdefault(key, _Tally())
+        tally.fired += 1
+        tally.outcomes[feed.outcome(shot)] += 1
+        tally.intercepts += feed.intercepts_by_defender[shot.id]
+        if target_kind == "weapon":
+            tally.weapons_targeted[
+                feed.weapon_of_shot(shot.target_shot, shot.target_type)
+            ] += 1
+        elif target_kind == "aircraft":
+            tally.targets[feed.describe_unit(shot.target, shot.target_type)] += 1
+    results = []
+    for (site_name, unit, weapon), tally in sorted(
+        tallies.items(), key=lambda item: -item[1].fired
+    )[:_MAX_WEAPON_LINES]:
+        line: dict[str, Any] = {
+            "site": site_name,
+            "unit": unit,
+            "weapon": weapon,
+            "fired": tally.fired,
+            "hit": tally.outcomes["hit"],
+            "intercepts": tally.intercepts,
+        }
+        if tally.targets:
+            line["at_aircraft"] = _top(tally.targets)
+        if tally.weapons_targeted:
+            line["at_weapons"] = _top(tally.weapons_targeted)
+        results.append(line)
+    return results
+
+
+def _weapons_summary(debriefing: Debriefing, player: Player) -> dict[str, Any]:
+    """The weapon feed from one side's point of view.
+
+    The side sees everything its own aircraft and air defenses fired and what
+    became of it (including which enemy defenses intercepted its weapons), and
+    enemy launches aimed at its own aircraft. Enemy shots at anything else are
+    left out.
+    """
+    feed = _WeaponFeed(debriefing, player)
+    if not feed.shots:
+        return {"available": False}
+    totals = _Tally()
+    for shot, _flight in feed.own_aircraft_shots():
+        totals.fired += 1
+        totals.outcomes[feed.outcome(shot)] += 1
+    return {
+        "available": True,
+        "own_aircraft_totals": totals.outcome_counts(),
+        "own_packages": _own_weapon_use(feed),
+        "enemy_fire_at_own_aircraft": _enemy_fire_at_own_aircraft(feed),
+        "own_air_defense": _own_air_defense(feed),
+        "note": WEAPON_FEED_NOTE,
+    }
+
+
 def summarize_debriefing(debriefing: Debriefing, player: Player) -> dict[str, Any]:
     """A fog-filtered after-action summary of a mission for one side."""
     if player.is_neutral:
@@ -381,6 +726,7 @@ def summarize_debriefing(debriefing: Debriefing, player: Player) -> dict[str, An
         ],
         "packages": _package_results(debriefing, player, own_air),
         "loss_attribution": _loss_attribution(debriefing, player),
+        "weapons": _weapons_summary(debriefing, player),
         "enemy_aircraft_types_encountered": sorted({a for a, _ in enemy_aircraft}),
     }
 
@@ -408,6 +754,74 @@ def _count_text(counts: Any) -> str:
 
 def _as_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _outcome_text(line: dict[str, Any]) -> str:
+    parts = []
+    if line.get("hit"):
+        parts.append(f"{line['hit']} hit")
+    if line.get("intercepted"):
+        text = f"{line['intercepted']} intercepted"
+        if line.get("intercepted_by"):
+            text += " by " + _count_text(line["intercepted_by"])
+        parts.append(text)
+    if line.get("no_hit"):
+        parts.append(f"{line['no_hit']} no hit")
+    if line.get("unresolved"):
+        parts.append(f"{line['unresolved']} unresolved")
+    return ", ".join(parts) if parts else "no result"
+
+
+def _weapons_markdown(weapons: dict[str, Any]) -> list[str]:
+    if not weapons.get("available"):
+        return []
+    lines = ["**Weapons** (intercepts are inferred, approximate):"]
+    totals = _as_dict(weapons.get("own_aircraft_totals"))
+    if totals.get("fired"):
+        lines.append(
+            f"- Own aircraft fired {totals['fired']} weapons: " + _outcome_text(totals)
+        )
+    for package in weapons.get("own_packages", []):
+        for line in package.get("weapons", []):
+            text = (
+                f"- Package {package.get('task')} vs {package.get('target')}: "
+                f"{line['aircraft']} ({line['task']}) {line['fired']}x "
+                f"{line['weapon']} fired: {_outcome_text(line)}"
+            )
+            if line.get("engaged_by_defenses"):
+                text += f"; {line['engaged_by_defenses']} engaged by enemy defenses"
+            if line.get("avg_launch_range_nm") is not None:
+                text += f"; launched at {line['avg_launch_range_nm']} nm on average"
+            if line.get("targets_hit"):
+                text += "; hit " + _count_text(line["targets_hit"])
+            lines.append(text)
+    enemy_fire = weapons.get("enemy_fire_at_own_aircraft", [])
+    if enemy_fire:
+        lines.append(
+            "**Enemy fired at your aircraft:** "
+            + "; ".join(
+                f"{e['fired']}x {e['weapon']} from {e['launcher']}: {e['hit']} hit"
+                + (f" (at {_count_text(e['at'])})" if e.get("at") else "")
+                for e in enemy_fire
+            )
+        )
+    air_defense = weapons.get("own_air_defense", [])
+    if air_defense:
+        lines.append("**Own air defense:**")
+    for defense in air_defense:
+        targets = [
+            _count_text(defense[kind])
+            for kind in ("at_aircraft", "at_weapons")
+            if defense.get(kind)
+        ]
+        lines.append(
+            f"- {defense['site']} ({defense['unit']}): "
+            f"{defense['fired']}x {defense['weapon']}"
+            + (f" at {', '.join(targets)}" if targets else "")
+            + f": {defense['hit']} hit, {defense['intercepts']} enemy weapons"
+            " intercepted"
+        )
+    return lines
 
 
 def debrief_markdown(summary: dict[str, Any]) -> str:
@@ -508,6 +922,7 @@ def debrief_markdown(summary: dict[str, Any]) -> str:
                     else str(damage or "none")
                 )
             )
+    lines.extend(_weapons_markdown(_as_dict(summary.get("weapons"))))
     if not attribution.get("attribution_available", True):
         lines.append("_This mission's results don't say what killed each aircraft._")
     return "\n".join(lines)
