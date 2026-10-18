@@ -136,3 +136,73 @@ def test_motorpool_losses_by_type_counts_per_side() -> None:
 
     assert debriefing.motorpool_losses_by_type(Player.BLUE) == {t90: 2, bmp: 1}
     assert debriefing.motorpool_losses_by_type(Player.RED) == {bmp: 1}
+
+
+def test_state_without_weapon_feed_parses() -> None:
+    from game.debriefing import StateData
+    from game.unitmap import UnitMap
+
+    state = StateData.from_json({"mission_ended": True, "kill_events": []}, UnitMap())
+    assert state.shot_records == []
+    assert state.hit_records == []
+    assert state.weapon_fates == []
+
+
+def test_weapon_feed_parses_tolerantly() -> None:
+    from game.debriefing import StateData, WeaponEngagement
+    from game.unitmap import UnitMap
+
+    data = {
+        "shot_events": [
+            {
+                "id": 1,
+                "time": 10.5,
+                "shooter": "Hornet-1",
+                "shooter_coalition": 2,
+                "weapon": "AGM_88",
+                "display_name": "AGM-88C",
+                "target": "SA15-1",
+                "range_m": 50000,
+            },
+            {"id": 2.0, "target_is_weapon": True, "target_shot": 1},
+            {"weapon": "no id"},
+            "junk",
+        ],
+        "hit_events": [{"shot": 1, "target": "SA15-1"}, {}, 7],
+        "weapon_fates": [
+            {
+                "shot": 1,
+                "fate": "intercepted",
+                "intercepted_by": {"shot": 2, "shooter_type": "Tor 9A331"},
+                "engaged_by": [{"shot": 2}, "junk"],
+                "x": 1,
+            },
+            {"shot": 3, "fate": "exploded"},
+            {"fate": "hit"},
+        ],
+    }
+    state = StateData.from_json(data, UnitMap())
+
+    first, second = state.shot_records
+    assert first.weapon_name == "AGM-88C" and first.range_m == 50000.0
+    assert first.shooter_coalition == 2 and not first.target_is_weapon
+    assert second.id == 2 and second.target_is_weapon and second.target_shot == 1
+    assert second.weapon_name == "unknown weapon"
+
+    assert [hit.shot for hit in state.hit_records] == [1, None]
+
+    [fate] = state.weapon_fates
+    assert fate.fate == "intercepted" and fate.x == 1.0
+    assert fate.intercepted_by == WeaponEngagement(shot=2, shooter_type="Tor 9A331")
+    assert fate.engaged_by == (WeaponEngagement(shot=2),)
+
+
+def test_weapon_feed_tolerates_empty_lua_tables() -> None:
+    from game.debriefing import StateData
+    from game.unitmap import UnitMap
+
+    # An empty Lua table may be encoded as an object rather than a list.
+    state = StateData.from_json(
+        {"shot_events": {}, "hit_events": {}, "weapon_fates": {}}, UnitMap()
+    )
+    assert state.shot_records == [] and state.weapon_fates == []

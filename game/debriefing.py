@@ -7,11 +7,13 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import (
     Any,
+    Callable,
     Dict,
     Iterator,
     List,
     Optional,
     TYPE_CHECKING,
+    TypeVar,
     Union,
 )
 from uuid import UUID
@@ -36,6 +38,8 @@ if TYPE_CHECKING:
     )
 
 DEBRIEFING_LOG_EXTENSION = "log"
+
+RecordT = TypeVar("RecordT")
 
 
 @dataclass(frozen=True)
@@ -159,6 +163,213 @@ class KillRecord:
         )
 
 
+def _json_number(data: dict[str, Any], key: str) -> Optional[float]:
+    value = data.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _json_int(data: dict[str, Any], key: str) -> Optional[int]:
+    value = data.get(key)
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return None
+
+
+def _json_text(data: dict[str, Any], key: str) -> Optional[str]:
+    value = data.get(key)
+    return str(value) if value not in (None, "") else None
+
+
+@dataclass(frozen=True)
+class ShotRecord:
+    """A weapon fired in the mission (S_EVENT_SHOT); gun rounds and shells are
+    not recorded. Every field but the id may be missing."""
+
+    #: Sequential id; hits and fates refer to the shot by it.
+    id: int
+    time: Optional[float] = None
+    shooter: Optional[str] = None
+    shooter_type: Optional[str] = None
+    #: DCS coalition id: 1 red, 2 blue.
+    shooter_coalition: Optional[int] = None
+    #: DCS weapon type name, e.g. "AGM_88".
+    weapon: Optional[str] = None
+    #: The weapon's display name, e.g. "AGM-88C HARM", when DCS gives one.
+    display_name: Optional[str] = None
+    #: "missile", "rocket", "bomb" or "torpedo".
+    category: Optional[str] = None
+    #: For missiles: "AAM", "SAM", "BM", "ANTI_SHIP", "CRUISE" or "OTHER".
+    missile_category: Optional[str] = None
+    guidance: Optional[str] = None
+    #: The weapon's target at launch (weapon:getTarget()), when it had one.
+    target: Optional[str] = None
+    target_type: Optional[str] = None
+    target_coalition: Optional[int] = None
+    #: True when the target was itself a weapon (a SAM fired at a missile).
+    target_is_weapon: bool = False
+    #: The shot id of the targeted weapon, when it was tracked.
+    target_shot: Optional[int] = None
+    #: Distance from the shooter to the target at launch, meters.
+    range_m: Optional[float] = None
+
+    @property
+    def weapon_name(self) -> str:
+        return self.display_name or self.weapon or "unknown weapon"
+
+    @classmethod
+    def from_json(cls, data: Any) -> Optional[ShotRecord]:
+        if not isinstance(data, dict):
+            return None
+        shot_id = _json_int(data, "id")
+        if shot_id is None:
+            return None
+        return cls(
+            id=shot_id,
+            time=_json_number(data, "time"),
+            shooter=_json_text(data, "shooter"),
+            shooter_type=_json_text(data, "shooter_type"),
+            shooter_coalition=_json_int(data, "shooter_coalition"),
+            weapon=_json_text(data, "weapon"),
+            display_name=_json_text(data, "display_name"),
+            category=_json_text(data, "category"),
+            missile_category=_json_text(data, "missile_category"),
+            guidance=_json_text(data, "guidance"),
+            target=_json_text(data, "target"),
+            target_type=_json_text(data, "target_type"),
+            target_coalition=_json_int(data, "target_coalition"),
+            target_is_weapon=data.get("target_is_weapon") is True,
+            target_shot=_json_int(data, "target_shot"),
+            range_m=_json_number(data, "range_m"),
+        )
+
+
+@dataclass(frozen=True)
+class HitRecord:
+    """A weapon hit (S_EVENT_HIT); gun rounds and shells are not recorded."""
+
+    time: Optional[float] = None
+    weapon: Optional[str] = None
+    #: The shot id of the weapon, when it was tracked.
+    shot: Optional[int] = None
+    shooter: Optional[str] = None
+    shooter_type: Optional[str] = None
+    shooter_coalition: Optional[int] = None
+    target: Optional[str] = None
+    target_type: Optional[str] = None
+    target_coalition: Optional[int] = None
+    target_is_weapon: bool = False
+    target_shot: Optional[int] = None
+
+    @classmethod
+    def from_json(cls, data: Any) -> Optional[HitRecord]:
+        if not isinstance(data, dict):
+            return None
+        return cls(
+            time=_json_number(data, "time"),
+            weapon=_json_text(data, "weapon"),
+            shot=_json_int(data, "shot"),
+            shooter=_json_text(data, "shooter"),
+            shooter_type=_json_text(data, "shooter_type"),
+            shooter_coalition=_json_int(data, "shooter_coalition"),
+            target=_json_text(data, "target"),
+            target_type=_json_text(data, "target_type"),
+            target_coalition=_json_int(data, "target_coalition"),
+            target_is_weapon=data.get("target_is_weapon") is True,
+            target_shot=_json_int(data, "target_shot"),
+        )
+
+
+@dataclass(frozen=True)
+class WeaponEngagement:
+    """A defending weapon fired at a tracked weapon."""
+
+    shot: Optional[int] = None
+    shooter: Optional[str] = None
+    shooter_type: Optional[str] = None
+    weapon: Optional[str] = None
+
+    @classmethod
+    def from_json(cls, data: Any) -> Optional[WeaponEngagement]:
+        if not isinstance(data, dict):
+            return None
+        return cls(
+            shot=_json_int(data, "shot"),
+            shooter=_json_text(data, "shooter"),
+            shooter_type=_json_text(data, "shooter_type"),
+            weapon=_json_text(data, "weapon"),
+        )
+
+
+WEAPON_FATES = ("hit", "intercepted", "no_hit")
+
+
+@dataclass(frozen=True)
+class WeaponFate:
+    """What became of a tracked weapon once it no longer existed.
+
+    "hit": DCS reported it hitting (or killing) something. "intercepted": a
+    defending weapon fired at it hit it, or ended within a couple of seconds of
+    it without it hitting anything; this is inferred and approximate. "no_hit":
+    it vanished without a reported hit. Weapons still flying at mission end
+    have no fate.
+    """
+
+    shot: int
+    fate: str
+    weapon: Optional[str] = None
+    #: Mission time it was found gone, seconds.
+    time: Optional[float] = None
+    #: Last known position (DCS x north, z east, alt), meters.
+    x: Optional[float] = None
+    z: Optional[float] = None
+    alt: Optional[float] = None
+    intercepted_by: Optional[WeaponEngagement] = None
+    engaged_by: tuple[WeaponEngagement, ...] = ()
+
+    @classmethod
+    def from_json(cls, data: Any) -> Optional[WeaponFate]:
+        if not isinstance(data, dict):
+            return None
+        shot = _json_int(data, "shot")
+        fate = data.get("fate")
+        if shot is None or fate not in WEAPON_FATES:
+            return None
+        engaged = data.get("engaged_by")
+        return cls(
+            shot=shot,
+            fate=str(fate),
+            weapon=_json_text(data, "weapon"),
+            time=_json_number(data, "time"),
+            x=_json_number(data, "x"),
+            z=_json_number(data, "z"),
+            alt=_json_number(data, "alt"),
+            intercepted_by=WeaponEngagement.from_json(data.get("intercepted_by")),
+            engaged_by=tuple(
+                engagement
+                for engagement in map(
+                    WeaponEngagement.from_json,
+                    engaged if isinstance(engaged, list) else [],
+                )
+                if engagement is not None
+            ),
+        )
+
+
+def _parse_records(
+    data: Dict[str, Any], key: str, parse: Callable[[Any], Optional[RecordT]]
+) -> list[RecordT]:
+    values = data.get(key)
+    if not isinstance(values, list):
+        return []
+    return [record for record in map(parse, values) if record is not None]
+
+
 @dataclass(frozen=True)
 class StateData:
     #: True if the mission ended. If False, the mission exited abnormally.
@@ -179,6 +390,12 @@ class StateData:
 
     #: Kill attribution, when the mission recorded it.
     kill_records: List[KillRecord] = field(default_factory=list)
+
+    #: The weapon feed (shots, hits and weapon fates), when the mission recorded
+    #: it. Missions generated before it have none.
+    shot_records: List[ShotRecord] = field(default_factory=list)
+    hit_records: List[HitRecord] = field(default_factory=list)
+    weapon_fates: List[WeaponFate] = field(default_factory=list)
 
     @classmethod
     def from_json(cls, data: Dict[str, Any], unit_map: UnitMap) -> StateData:
@@ -223,6 +440,9 @@ class StateData:
                 for record in map(KillRecord.from_json, data.get("kill_details", []))
                 if record is not None
             ],
+            shot_records=_parse_records(data, "shot_events", ShotRecord.from_json),
+            hit_records=_parse_records(data, "hit_events", HitRecord.from_json),
+            weapon_fates=_parse_records(data, "weapon_fates", WeaponFate.from_json),
         )
 
 
