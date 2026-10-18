@@ -73,6 +73,8 @@ The goal is fully autonomous, LLM-driven campaign planning for RED and BLUE. Cla
 - **Session progress** is tracked in `sessions.json` in the work folder, not in the save. An older save still points at the same session id, so rewinds are detected against the registry.
 - **Debriefs:** `MissionSimulation.process_results` stores a fog-filtered `summarize_debriefing` and the enemy aircraft sightings in each Claude side's `CommanderState`.
 
+- **Combat feed:** the base plugin records kill attribution (`kill_details`) and a weapon feed (`shot_events`, `hit_events`, `weapon_fates`, with intercepts inferred when a defending missile targeted a weapon that then vanished without a hit). `game/debriefing.py` parses them; `game/claudecommander/debrief.py` turns them into each side's `loss_attribution` and `weapons` sections, showing only the side's own fire and enemy fire at its own aircraft.
+
 ### 2.2 MCP endpoint
 The protocol, tool registry and per-side tokens live in `game/claudecommander/mcp/`; only the FastAPI route (`/mcp/{side}`) is in `game/server/mcp/`. That split avoids an import cycle with `game.server`.
 - This is a small hand-written implementation of MCP Streamable HTTP: JSON-RPC over POST, with `initialize`, `tools/list` and `tools/call`. It is mounted on the existing FastAPI server.

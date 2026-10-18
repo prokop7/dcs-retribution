@@ -113,6 +113,14 @@ support each other, and deconflict times over target.
 defensive counter-air over what you must protect, support (AEW&C, tankers) when \
 you have it, and offensive packages that serve your intent. Defensive and support \
 missions target your own bases: get_mission_targets(owner="own").
+- Read the debrief's weapons section. Per package it shows how many weapons \
+were fired and how many hit, were intercepted (and by what) or missed. If most \
+were intercepted, the defenses are saturating you: send more weapons at once, \
+suppress the point defenses first, or attack from another axis. If most simply \
+missed, look at launch range and the weapon. If too few were fired for the \
+target, raise the count instead of giving up on it. Enemy fire at your \
+aircraft shows which launcher types engaged your packages and how well. \
+Intercepts are inferred, so treat small numbers as approximate.
 - Use your force. get_situation and validate_air_plan report how many aircraft \
 you own, how many are tasked, and which squadrons sit idle with ready aircraft \
 and pilots. Aircraft and pilots are not used up by flying: there is no fatigue \
