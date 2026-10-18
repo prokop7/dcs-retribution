@@ -9,6 +9,9 @@ dead_events = {} -- killed units will be added via S_EVENT_DEAD event
 unit_lost_events = {} -- killed units will be added via S_EVENT_UNIT_LOST
 kill_events = {} -- killed units will be added via S_EVENT_KILL 
 kill_details = {} -- who killed what, with which weapon, where and when (S_EVENT_KILL)
+shot_events = {} -- weapons fired, except gun rounds and shells (S_EVENT_SHOT)
+hit_events = {} -- weapon hits (S_EVENT_HIT), except gun rounds and shells
+weapon_fates = {} -- what became of each tracked weapon: hit, intercepted or no_hit
 base_capture_events = {}
 destroyed_objects_positions = {} -- will be added via S_EVENT_DEAD event
 mission_ended = false
@@ -47,6 +50,9 @@ function write_state()
 		["unit_lost_events"] = unit_lost_events,
 		["kill_events"] = kill_events,
 		["kill_details"] = kill_details,
+        ["shot_events"] = shot_events,
+        ["hit_events"] = hit_events,
+        ["weapon_fates"] = weapon_fates,
         ["mission_ended"] = mission_ended,
         ["destroyed_objects_positions"] = destroyed_objects_positions,
     }
@@ -195,6 +201,343 @@ local function kill_detail(event)
     return detail
 end
 
+-- Weapon feed: what was fired (S_EVENT_SHOT), what hit (S_EVENT_HIT) and what
+-- became of each weapon. Gun rounds (S_EVENT_SHOOTING_START/END) and shells are
+-- left out. Each launched weapon is tracked until it no longer exists, then gets
+-- a fate:
+--   "hit"         an S_EVENT_HIT (or S_EVENT_KILL) named this weapon;
+--   "intercepted" a defending weapon was fired at it (its getTarget() was this
+--                 weapon) and either hit it, or ended within INTERCEPT_WINDOW
+--                 seconds of it without this weapon hitting anything;
+--   "no_hit"      it vanished without a hit event.
+-- The intercept inference is approximate: weapons are polled every
+-- WEAPON_CHECK_INTERVAL seconds, a defender that ends next to a weapon that then
+-- misses counts as an intercept, and blast damage DCS doesn't report as a hit
+-- counts as "no_hit". Weapons still in flight when the mission ends get no fate.
+local MAX_SHOT_EVENTS = 4000
+local MAX_HIT_EVENTS = 4000
+local MAX_WEAPON_FATES = 4000
+local MAX_TRACKED_WEAPONS = 600
+local MAX_ENGAGEMENTS_PER_WEAPON = 8
+local WEAPON_CHECK_INTERVAL = 1
+local INTERCEPT_WINDOW = 2
+local ENDED_WEAPON_MEMORY = 60
+
+local WEAPON_CATEGORY_NAMES = { [0] = "shell", [1] = "missile", [2] = "rocket", [3] = "bomb", [4] = "torpedo" }
+local MISSILE_CATEGORY_NAMES = { [1] = "AAM", [2] = "SAM", [3] = "BM", [4] = "ANTI_SHIP", [5] = "CRUISE", [6] = "OTHER" }
+local GUIDANCE_NAMES = {
+    [1] = "INS", [2] = "IR", [3] = "RADAR_ACTIVE", [4] = "RADAR_SEMI_ACTIVE",
+    [5] = "RADAR_PASSIVE", [6] = "TV", [7] = "LASER", [8] = "TELE",
+}
+
+local tracked_weapons = {} -- weapon key -> track, while the weapon exists
+local tracked_weapon_count = 0
+local pending_fates = {} -- weapon key -> track, gone but waiting for its defenders
+local ended_weapons = {} -- weapon key -> mission time it was found gone
+local last_shot_id = 0
+local weapon_feed_error_logged = false
+
+local function shell_category()
+    if Weapon and Weapon.Category and Weapon.Category.SHELL then
+        return Weapon.Category.SHELL
+    end
+    return 0
+end
+
+local function weapon_object_category()
+    if Object and Object.Category and Object.Category.WEAPON then
+        return Object.Category.WEAPON
+    end
+    return 2
+end
+
+-- Calls obj:method() and returns its first result, or nil if the object lacks
+-- the method or DCS raises (the object may already be gone).
+local function try_call(obj, method)
+    if obj == nil then return nil end
+    local ok, fn = pcall(function() return obj[method] end)
+    if not ok or type(fn) ~= "function" then return nil end
+    local called, value = pcall(fn, obj)
+    if called then return value end
+    return nil
+end
+
+local function weapon_key(weapon)
+    if weapon == nil then return nil end
+    if type(weapon) == "table" and weapon.id_ ~= nil then
+        return tostring(weapon.id_)
+    end
+    return tostring(weapon)
+end
+
+local function point_of(obj)
+    local point = try_call(obj, "getPoint")
+    if type(point) == "table" and type(point.x) == "number" and type(point.z) == "number" then
+        return point
+    end
+    return nil
+end
+
+local function describe_object(obj, prefix, record)
+    if obj == nil then return end
+    record[prefix] = try_call(obj, "getName")
+    record[prefix .. "_type"] = try_call(obj, "getTypeName")
+    record[prefix .. "_coalition"] = try_call(obj, "getCoalition")
+end
+
+local function is_weapon_object(obj)
+    return obj ~= nil and try_call(obj, "getCategory") == weapon_object_category()
+end
+
+-- A tracked weapon, in flight or waiting for its fate.
+local function find_track(weapon)
+    local key = weapon_key(weapon)
+    if key == nil then return nil end
+    return tracked_weapons[key] or pending_fates[key]
+end
+
+local function weapon_category(weapon)
+    local desc = try_call(weapon, "getDesc")
+    if type(desc) ~= "table" then return nil, nil end
+    return desc.category, desc
+end
+
+local function shot_detail(event)
+    local weapon = event.weapon
+    if weapon == nil or #shot_events >= MAX_SHOT_EVENTS then return nil end
+    local category, desc = weapon_category(weapon)
+    if category == shell_category() then return nil end
+
+    last_shot_id = last_shot_id + 1
+    local shot = { id = last_shot_id, time = timer.getTime() }
+    shot.weapon = try_call(weapon, "getTypeName") or event.weapon_name
+    if desc then
+        shot.category = WEAPON_CATEGORY_NAMES[category] or category
+        if type(desc.displayName) == "string" and desc.displayName ~= "" then
+            shot.display_name = desc.displayName
+        end
+        if desc.missileCategory then
+            shot.missile_category = MISSILE_CATEGORY_NAMES[desc.missileCategory] or desc.missileCategory
+        end
+        if desc.guidance then
+            shot.guidance = GUIDANCE_NAMES[desc.guidance] or desc.guidance
+        end
+    end
+    local shooter = event.initiator
+    describe_object(shooter, "shooter", shot)
+
+    local target = try_call(weapon, "getTarget")
+    local target_track = nil
+    if target ~= nil then
+        describe_object(target, "target", shot)
+        if is_weapon_object(target) then
+            shot.target_is_weapon = true
+            target_track = find_track(target)
+            if target_track then shot.target_shot = target_track.shot end
+        end
+        local from = point_of(shooter)
+        local to = point_of(target)
+        if from and to then
+            local dx, dz = to.x - from.x, to.z - from.z
+            shot.range_m = math.floor(math.sqrt(dx * dx + dz * dz))
+        end
+    end
+    shot_events[#shot_events + 1] = shot
+
+    local key = weapon_key(weapon)
+    if tracked_weapon_count < MAX_TRACKED_WEAPONS and key and not tracked_weapons[key] then
+        local track = {
+            key = key,
+            shot = shot.id,
+            weapon = weapon,
+            weapon_type = shot.weapon,
+            shooter = shot.shooter,
+            shooter_type = shot.shooter_type,
+        }
+        local point = point_of(weapon) or point_of(shooter)
+        if point then
+            track.x, track.z, track.alt = point.x, point.z, point.y
+        end
+        tracked_weapons[key] = track
+        tracked_weapon_count = tracked_weapon_count + 1
+    end
+
+    if target_track then
+        target_track.engaged_by = target_track.engaged_by or {}
+        if #target_track.engaged_by < MAX_ENGAGEMENTS_PER_WEAPON then
+            target_track.engaged_by[#target_track.engaged_by + 1] = {
+                key = key,
+                shot = shot.id,
+                shooter = shot.shooter,
+                shooter_type = shot.shooter_type,
+                weapon = shot.weapon,
+            }
+        end
+    end
+    return shot
+end
+
+local function defender_summary(track)
+    return {
+        shot = track.shot,
+        shooter = track.shooter,
+        shooter_type = track.shooter_type,
+        weapon = track.weapon_type,
+    }
+end
+
+local function hit_detail(event)
+    local weapon = event.weapon
+    local track = find_track(weapon)
+    if track == nil then
+        if weapon == nil and not event.weapon_name then return nil end
+        if weapon ~= nil and weapon_category(weapon) == shell_category() then return nil end
+    end
+    if #hit_events >= MAX_HIT_EVENTS then
+        if track then track.hit = true end
+        return nil
+    end
+
+    local hit = { time = timer.getTime() }
+    if track then
+        track.hit = true
+        hit.shot = track.shot
+        hit.weapon = track.weapon_type
+    else
+        hit.weapon = try_call(weapon, "getTypeName") or event.weapon_name
+    end
+    describe_object(event.initiator, "shooter", hit)
+    local target = event.target
+    if target ~= nil then
+        describe_object(target, "target", hit)
+        if is_weapon_object(target) then
+            hit.target_is_weapon = true
+            local target_track = find_track(target)
+            if target_track then
+                hit.target_shot = target_track.shot
+                if track then target_track.intercepted_by = defender_summary(track) end
+            end
+        end
+    end
+    hit_events[#hit_events + 1] = hit
+    return hit
+end
+
+-- A weapon that killed something hit it, even without an S_EVENT_HIT.
+local function note_kill_weapon(event)
+    local track = find_track(event.weapon)
+    if track then track.hit = true end
+end
+
+local function resolve_weapon_fate(track)
+    local fate = {
+        shot = track.shot,
+        weapon = track.weapon_type,
+        time = track.ended,
+        x = track.x,
+        z = track.z,
+        alt = track.alt,
+    }
+    if track.hit then
+        fate.fate = "hit"
+    else
+        local by = track.intercepted_by
+        if by == nil and track.engaged_by then
+            local best_gap = nil
+            for _, defender in ipairs(track.engaged_by) do
+                local ended = defender.key and ended_weapons[defender.key]
+                if ended and track.ended then
+                    local gap = math.abs(ended - track.ended)
+                    if gap <= INTERCEPT_WINDOW and (best_gap == nil or gap < best_gap) then
+                        by, best_gap = defender, gap
+                    end
+                end
+            end
+        end
+        if by then
+            fate.fate = "intercepted"
+            fate.intercepted_by = {
+                shot = by.shot,
+                shooter = by.shooter,
+                shooter_type = by.shooter_type,
+                weapon = by.weapon,
+            }
+        else
+            fate.fate = "no_hit"
+        end
+    end
+    if track.engaged_by then
+        fate.engaged_by = {}
+        for _, defender in ipairs(track.engaged_by) do
+            fate.engaged_by[#fate.engaged_by + 1] = {
+                shot = defender.shot,
+                shooter = defender.shooter,
+                shooter_type = defender.shooter_type,
+                weapon = defender.weapon,
+            }
+        end
+    end
+    if #weapon_fates < MAX_WEAPON_FATES then
+        weapon_fates[#weapon_fates + 1] = fate
+        dirty_state = true
+    end
+    return fate
+end
+
+-- Waits for the defenders engaging a gone weapon to end too, so an intercept
+-- where both vanish a poll apart is still matched.
+local function fate_ready(track, now, flush)
+    if flush or track.hit or track.intercepted_by or not track.engaged_by then
+        return true
+    end
+    if now - track.ended >= INTERCEPT_WINDOW then return true end
+    for _, defender in ipairs(track.engaged_by) do
+        if defender.key and tracked_weapons[defender.key] then return false end
+    end
+    return true
+end
+
+-- Polls tracked weapons: keeps their last position while they exist, and gives
+-- each one a fate once it is gone. flush resolves every pending fate now (at
+-- mission end).
+local function check_tracked_weapons(now, flush)
+    for key, track in pairs(tracked_weapons) do
+        if try_call(track.weapon, "isExist") then
+            local point = point_of(track.weapon)
+            if point then
+                track.x, track.z, track.alt = point.x, point.z, point.y
+            end
+        else
+            -- Assigning nil to an existing field while iterating with pairs is allowed.
+            tracked_weapons[key] = nil
+            tracked_weapon_count = tracked_weapon_count - 1
+            track.ended = now
+            track.weapon = nil
+            ended_weapons[key] = now
+            pending_fates[key] = track
+        end
+    end
+    for key, track in pairs(pending_fates) do
+        if fate_ready(track, now, flush) then
+            pending_fates[key] = nil
+            resolve_weapon_fate(track)
+        end
+    end
+    for key, ended in pairs(ended_weapons) do
+        if now - ended > ENDED_WEAPON_MEMORY then ended_weapons[key] = nil end
+    end
+end
+
+local function weapon_feed_tick()
+    local now = timer.getTime()
+    local ok, check_error = pcall(check_tracked_weapons, now, false)
+    if not ok and not weapon_feed_error_logged then
+        weapon_feed_error_logged = true
+        logger:error("Weapon feed check failed: " .. tostring(check_error))
+    end
+    return now + WEAPON_CHECK_INTERVAL
+end
+
 activeWeapons = {}
 local function onEvent(event)
     if event.id == world.event.S_EVENT_CRASH and event.initiator then
@@ -213,7 +556,22 @@ local function onEvent(event)
         if ok and detail then
             kill_details[#kill_details + 1] = detail
         end
+        pcall(note_kill_weapon, event)
         dirty_state = true
+    end
+
+    if event.id == world.event.S_EVENT_SHOT then
+        local ok, shot = pcall(shot_detail, event)
+        if ok and shot then
+            dirty_state = true
+        end
+    end
+
+    if event.id == world.event.S_EVENT_HIT then
+        local ok, hit = pcall(hit_detail, event)
+        if ok and hit then
+            dirty_state = true
+        end
     end
 
     if event.id == world.event.S_EVENT_DEAD and event.initiator and event.initiator.getName then
@@ -235,6 +593,7 @@ local function onEvent(event)
     end
 
     if event.id == world.event.S_EVENT_MISSION_END then
+        pcall(check_tracked_weapons, timer.getTime(), true)
         mission_ended = true
         dirty_state = true
         if pcall(write_state) then
@@ -245,6 +604,7 @@ local function onEvent(event)
 end
 
 mist.addEventHandler(onEvent)
+timer.scheduleFunction(weapon_feed_tick, nil, timer.getTime() + WEAPON_CHECK_INTERVAL)
 
 dirty_state = true
 write_state_error_handling()
