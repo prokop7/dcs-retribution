@@ -4,6 +4,7 @@ import itertools
 import logging
 from collections.abc import Iterator
 from datetime import datetime, timedelta
+from typing import Optional
 
 from typing_extensions import TYPE_CHECKING
 
@@ -22,6 +23,35 @@ if TYPE_CHECKING:
 _MAX_SETTLE_STEPS = 8
 
 
+def uncontested_limit(flight: Flight) -> Optional[int]:
+    """Index of the furthest waypoint a flight may reach before mission start.
+
+    Time before mission start is not simulated with combat, so it may only cover
+    the part of a route nobody contests: up to the package's join point, or, for a
+    route without one, its first ingress, drop-off or target waypoint. Flights
+    without such waypoints (patrols, AEW&C, tankers, ferries) operate over
+    friendly airspace and have no limit.
+    """
+    from game.ato.flightwaypointtype import FlightWaypointType
+
+    waypoints = flight.flight_plan.waypoints
+    for index, waypoint in enumerate(waypoints):
+        if waypoint.waypoint_type is FlightWaypointType.JOIN:
+            return index
+    contested = {
+        FlightWaypointType.DROPOFF_ZONE,
+        FlightWaypointType.TARGET_POINT,
+        FlightWaypointType.TARGET_GROUP_LOC,
+    }
+    for index, waypoint in enumerate(waypoints):
+        if (
+            waypoint.waypoint_type.name.startswith("INGRESS")
+            or waypoint.waypoint_type in contested
+        ):
+            return index
+    return None
+
+
 def settle_initial_state(
     flight: Flight, now: datetime, events: GameUpdateEvents
 ) -> None:
@@ -32,7 +62,11 @@ def settle_initial_state(
     its own completion time and roll the overrun into the next, so a flight that
     should have taken off before mission start ends up navigating at its planned
     position (and is spawned in the air there) whatever the fast forward setting.
-    Combat is not evaluated during this catch-up.
+
+    Combat is not evaluated during this catch-up, so a flight is never advanced past
+    its uncontested limit (see ``uncontested_limit``): a flight that would be
+    further along spawns at that point and flies the contested part during the
+    mission, arriving late, instead of appearing next to its target.
     """
     flight.state.reinitialize(now)
     for _ in range(_MAX_SETTLE_STEPS):
@@ -41,7 +75,26 @@ def settle_initial_state(
             return
         state.on_game_tick(events, now, timedelta())
         if flight.state is state:
+            break
+    _hold_at_uncontested_limit(flight)
+
+
+def _hold_at_uncontested_limit(flight: Flight) -> None:
+    from game.ato.flightstate import Navigating
+    from game.ato.flightstate.inflight import InFlight
+
+    limit = uncontested_limit(flight)
+    if limit is None:
+        return
+    state = flight.state
+    if isinstance(state, InFlight):
+        if state.waypoint_index < limit:
             return
+        if state.waypoint_index == limit and state.elapsed_time <= timedelta():
+            return
+    elif not isinstance(state, Completed):
+        return
+    flight.set_state(Navigating(flight, state.settings, waypoint_index=limit))
 
 
 class AircraftSimulation:

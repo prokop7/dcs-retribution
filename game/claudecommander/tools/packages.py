@@ -18,6 +18,8 @@ from game.claudecommander.tools.airplan import (
     ESCORT_TASKS,
     TotArgs,
     apply_tot,
+    earliest_fair_tot,
+    hms,
     editable_flight,
     editable_package,
     find_divert_field,
@@ -380,7 +382,11 @@ def create_package(context: CommanderContext, args: CreatePackageArgs) -> Json:
             "A package cannot consist of escort flights only (Escort, SEAD Escort). "
             "Add the flight they protect."
         )
-    warnings = apply_tot(game, package, tot)
+    try:
+        warnings = apply_tot(game, package, tot)
+    except ToolError:
+        _rollback(package, flights)
+        raise
     view.coalition.ato.add_package(package)
     for flight in package.flights:
         context.events.new_flight(flight)
@@ -402,6 +408,15 @@ def add_flight(context: CommanderContext, args: AddFlightArgs) -> Json:
     spec = FlightSpec.model_validate(args.model_dump(exclude={"package_id"}))
     flights, infos = _add_flights(view, package, [spec])
     refresh_asap(context.game, package)
+    earliest = None if package.auto_asap else earliest_fair_tot(context.game, package)
+    if earliest is not None:
+        _rollback(package, flights)
+        raise ToolError(
+            f"This flight can't reach its join point by mission start for the "
+            f"package TOT {hms(package.time_over_target)}; the time before the "
+            "mission isn't fought. Move the package TOT to at least "
+            f"{hms(earliest)} first, or use a squadron closer to the target."
+        )
     context.events.new_flight(flights[0])
     package_updated(context.events, package)
     warnings = [] if package.auto_asap else timing_warnings(context.game, package)

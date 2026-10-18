@@ -70,19 +70,48 @@ def test_air_start_catches_up_on_time_already_flown(game: Game) -> None:
     )
 
 
-def test_future_flights_wait_and_finished_flights_are_reported(game: Game) -> None:
+def test_future_flights_wait_and_no_flight_skips_the_contested_part(
+    game: Game,
+) -> None:
+    from game.sim.aircraftsimulation import uncontested_limit
+
     flight = long_flight(game)
     start = game.conditions.start_time
-    plan = flight.flight_plan
     flight.package.time_over_target = start + timedelta(hours=2)
     settle(game, flight)
     assert isinstance(flight.state, WaitingForStart)
     assert state_at_mission_start(game, flight) is None
 
+    # A TOT long before mission start would have the flight finish its whole
+    # mission unopposed. It is held at its join point instead.
     flight.package.time_over_target = start - timedelta(hours=6)
     settle(game, flight)
-    assert isinstance(flight.state, Completed)
-    where = state_at_mission_start(game, flight)
-    assert where is not None and "dropped" in where
-    # The probe restores whatever state the flight had.
-    assert isinstance(flight.state, Completed)
+    limit = uncontested_limit(flight)
+    assert limit is not None
+    assert isinstance(flight.state, InFlight)
+    assert flight.state.waypoint_index == limit
+    assert flight.flight_plan.waypoints[limit].waypoint_type.name == "JOIN"
+
+
+def test_tools_refuse_a_tot_that_skips_the_contested_part(game: Game) -> None:
+    from tests.claudecommander.test_air_tools import Caller
+
+    flight = long_flight(game)
+    package = flight.package
+    player = flight.squadron.player
+    package.player_locked = False
+    caller = Caller(game, player)
+    package_id = caller.ok("get_ato", {})["packages"][0]["id"]
+    for p in caller.ok("get_ato", {})["packages"]:
+        if p["target"]["name"] == package.target.name:
+            package_id = p["id"]
+    before = package.time_over_target
+
+    text = caller.error(
+        "set_package_tot", {"package_id": package_id, "minutes_after_start": 1}
+    )
+    assert "Earliest allowed TOT" in text
+    assert package.time_over_target == before
+
+    validation = caller.ok("validate_air_plan", {})
+    assert not any(i["kind"] == "tot_too_early" for i in validation["issues"])

@@ -213,15 +213,56 @@ def parse_tot(game: Game, args: TotArgs) -> Optional[datetime]:
     return tot
 
 
+def earliest_fair_tot(game: Game, package: Package) -> Optional[datetime]:
+    """The earliest TOT that keeps every flight short of its uncontested limit at
+    mission start, or None when the current TOT already does.
+
+    Time before mission start isn't simulated with combat, so no flight may pass
+    its package join point (or first ingress) before the mission begins.
+    """
+    from game.sim.aircraftsimulation import uncontested_limit
+
+    start = mission_start(game)
+    shortfall = timedelta()
+    for flight in package.flights:
+        limit = uncontested_limit(flight)
+        if limit is None:
+            continue
+        waypoint = flight.flight_plan.waypoints[limit]
+        try:
+            at_limit = flight.flight_plan.tot_for_waypoint(waypoint)
+        except Exception:
+            continue
+        if at_limit is not None and at_limit < start:
+            shortfall = max(shortfall, start - at_limit)
+    if shortfall <= timedelta():
+        return None
+    return package.time_over_target + shortfall
+
+
 def apply_tot(game: Game, package: Package, tot: Optional[datetime]) -> list[str]:
-    """Sets the package TOT (None = ASAP) and returns timing warnings."""
+    """Sets the package TOT (None = ASAP) and returns timing warnings.
+
+    Raises ToolError, leaving the package as it was, when the TOT would carry a
+    flight past its join point before mission start.
+    """
     start = mission_start(game)
     if tot is None:
         package.auto_asap = True
         package.set_tot_asap(start)
         return []
+    previous = (package.time_over_target, package.auto_asap)
     package.auto_asap = False
     package.time_over_target = tot
+    earliest = earliest_fair_tot(game, package)
+    if earliest is not None:
+        package.time_over_target, package.auto_asap = previous
+        raise ToolError(
+            f"TOT {hms(tot)} is too early: some flights would already be past their "
+            "package join point at mission start, and the time before the mission "
+            "isn't fought. The contested part of a route must be flown during the "
+            f"mission. Earliest allowed TOT: {hms(earliest)}."
+        )
     return timing_warnings(game, package)
 
 

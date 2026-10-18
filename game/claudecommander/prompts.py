@@ -82,12 +82,14 @@ happen and lessons learned. Record verified facts about the game or the tools th
 possible.
 - Both sides fly in the same mission window (get_situation: mission_window). The \
 mission opens with the war already under way. Put your times over target early \
-in the window, from a few minutes after start, so your operations meet the \
-enemy's instead of trickling in after the fight is over. A flight whose takeoff \
-falls before mission start is spawned in the air at the point its plan puts it \
-(create_package and set_package_tot say where), so distant targets can be hit \
-soon after start. A TOT so early that a flight would already have landed drops \
-that flight. Keep packages with player pilots reachable from a ramp start.
+in the window so your operations meet the enemy's instead of trickling in after \
+the fight is over. A flight may already be in the air at mission start, but \
+only on the uncontested part of its route, up to its package join point: the \
+time before the mission isn't fought, so everything past the join point (the \
+push to the target, the drop-off, the attack) is flown during the mission, \
+where the enemy can intercept it. The tools refuse TOTs that would skip it and \
+give the earliest fair TOT. Keep packages with player pilots reachable from a \
+ramp start.
 - Packages the player created or edited are locked. Plan around them; you can't \
 change them.
 - Tool errors explain what was wrong and what is valid. Fix the call and carry on.
