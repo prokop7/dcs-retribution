@@ -89,12 +89,14 @@ possible.
 mission opens with the war already under way. Put your times over target early \
 in the window so your operations meet the enemy's instead of trickling in after \
 the fight is over. A flight may already be in the air at mission start, but \
-only on the uncontested part of its route, up to its package join point: the \
-time before the mission isn't fought, so everything past the join point (the \
-push to the target, the drop-off, the attack) is flown during the mission, \
-where the enemy can intercept it. The tools refuse TOTs that would skip it and \
-give the earliest fair TOT. Keep packages with player pilots reachable from a \
-ramp start.
+only on the uncontested part of its route: up to its package join point, no \
+closer to the target than the doctrine's join plus minimum ingress distance \
+(moving the join point forward doesn't change that), and not into an enemy SAM \
+ring it started outside of. The time before the mission isn't fought, so the \
+push to the target, the drop-off and the attack are flown during the mission, \
+where the enemy can intercept them. The tools refuse TOTs that would skip that \
+part and give the earliest fair TOT. Keep packages with player pilots reachable \
+from a ramp start.
 - Packages the player created or edited are locked. Plan around them; you can't \
 change them.
 - Tool errors explain what was wrong and what is valid. Fix the call and carry on.

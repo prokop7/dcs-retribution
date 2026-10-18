@@ -19,7 +19,7 @@ from game.claudecommander.tools.airplan import (
     fuel_estimate,
     hms,
     mission_start,
-    earliest_fair_tot,
+    fair_tot_shortfall,
     package_label,
     state_at_mission_start,
     range_facts,
@@ -109,14 +109,14 @@ def validate(view: CommanderView) -> Json:
                 f"Package {label} has only escort flights.",
                 package=package_id,
             )
-        earliest = earliest_fair_tot(game, package)
-        if earliest is not None:
+        shortfall = fair_tot_shortfall(game, package)
+        if shortfall is not None:
+            earliest, reason = shortfall
             issue(
                 "tot_too_early",
-                f"Package {label}: TOT {hms(package.time_over_target)} would put "
-                "flights past their join point before mission start. They will "
-                "spawn at the join point and arrive late. Earliest fair TOT: "
-                f"{hms(earliest)}.",
+                f"Package {label}: with TOT {hms(package.time_over_target)}, at "
+                f"mission start {reason}. It will spawn there and arrive late. "
+                f"Earliest fair TOT: {hms(earliest)}.",
                 package=package_id,
             )
         has_sead = any(f.flight_type in SEAD_TASKS for f in package.flights)

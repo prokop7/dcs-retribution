@@ -213,38 +213,50 @@ def parse_tot(game: Game, args: TotArgs) -> Optional[datetime]:
     return tot
 
 
-def earliest_fair_tot(game: Game, package: Package) -> Optional[datetime]:
-    """The earliest TOT that keeps every flight short of its uncontested limit at
-    mission start, or None when the current TOT already does.
+def fair_tot_shortfall(game: Game, package: Package) -> Optional[tuple[datetime, str]]:
+    """The earliest TOT that keeps every flight within its pre-start limit at
+    mission start, and what limits the flight furthest past it, or None when the
+    current TOT already does.
 
     Time before mission start isn't simulated with combat, so no flight may pass
-    its package join point (or first ingress) before the mission begins.
+    its package join point, come within the doctrine's join distance of its target
+    or enter an enemy SAM ring before the mission begins (game.sim.prestart).
     """
-    from game.sim.aircraftsimulation import uncontested_limit
+    from game.sim.prestart import prestart_limit, time_at_limit
 
     start = mission_start(game)
     shortfall = timedelta()
+    reason = ""
     for flight in package.flights:
-        limit = uncontested_limit(flight)
+        limit = prestart_limit(flight)
         if limit is None:
             continue
-        waypoint = flight.flight_plan.waypoints[limit]
         try:
-            at_limit = flight.flight_plan.tot_for_waypoint(waypoint)
+            at_limit = time_at_limit(flight, limit)
         except Exception:
             continue
-        if at_limit is not None and at_limit < start:
-            shortfall = max(shortfall, start - at_limit)
+        if at_limit is not None and start - at_limit > shortfall:
+            shortfall = start - at_limit
+            reason = f"{flight.unit_type.display_name} would be past {limit.reason}"
     if shortfall <= timedelta():
         return None
-    return package.time_over_target + shortfall
+    earliest = package.time_over_target + shortfall
+    # Reported to the second, so round up: the reported time must be accepted.
+    if earliest.microsecond:
+        earliest += timedelta(microseconds=1_000_000 - earliest.microsecond)
+    return earliest, reason
+
+
+def earliest_fair_tot(game: Game, package: Package) -> Optional[datetime]:
+    result = fair_tot_shortfall(game, package)
+    return None if result is None else result[0]
 
 
 def apply_tot(game: Game, package: Package, tot: Optional[datetime]) -> list[str]:
     """Sets the package TOT (None = ASAP) and returns timing warnings.
 
     Raises ToolError, leaving the package as it was, when the TOT would carry a
-    flight past its join point before mission start.
+    flight past its pre-start limit before mission start.
     """
     start = mission_start(game)
     if tot is None:
@@ -254,14 +266,16 @@ def apply_tot(game: Game, package: Package, tot: Optional[datetime]) -> list[str
     previous = (package.time_over_target, package.auto_asap)
     package.auto_asap = False
     package.time_over_target = tot
-    earliest = earliest_fair_tot(game, package)
-    if earliest is not None:
+    result = fair_tot_shortfall(game, package)
+    if result is not None:
         package.time_over_target, package.auto_asap = previous
+        earliest, reason = result
         raise ToolError(
-            f"TOT {hms(tot)} is too early: some flights would already be past their "
-            "package join point at mission start, and the time before the mission "
-            "isn't fought. The contested part of a route must be flown during the "
-            f"mission. Earliest allowed TOT: {hms(earliest)}."
+            f"TOT {hms(tot)} is too early: at mission start {reason}, and the time "
+            "before the mission isn't fought. The contested part of a route (past "
+            "the join point, closer to the target than the doctrine's join plus "
+            "minimum ingress distance, or into an enemy SAM ring) must be flown "
+            f"during the mission. Earliest allowed TOT: {hms(earliest)}."
         )
     return timing_warnings(game, package)
 

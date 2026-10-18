@@ -417,7 +417,11 @@ def test_standoff_route_in_generated_mission(game: Game, tmp_path: Path) -> None
 
     ingress = default_points[default_names.index("INGRESS")]
     launch = standoff_points[standoff_names.index("LAUNCH")]
-    assert distance(launch) == pytest.approx(60, abs=0.5)
+    # The mission matches the plan. The plan launches at 60 nm unless that would
+    # put the launch point before the package's join point (see find_launch_point).
+    planned = nm_to_target(standoff, ingress_of(standoff).position)
+    assert distance(launch) == pytest.approx(planned, abs=0.5)
+    assert planned <= 60.5
     assert distance(ingress) < distance(launch)
     # The same attack tasks, on the launch point instead of the ingress point.
     assert len(_attack_tasks(launch)) == len(_attack_tasks(ingress)) > 0

@@ -18,7 +18,7 @@ from game.claudecommander.tools.airplan import (
     ESCORT_TASKS,
     TotArgs,
     apply_tot,
-    earliest_fair_tot,
+    fair_tot_shortfall,
     hms,
     editable_flight,
     editable_package,
@@ -408,14 +408,15 @@ def add_flight(context: CommanderContext, args: AddFlightArgs) -> Json:
     spec = FlightSpec.model_validate(args.model_dump(exclude={"package_id"}))
     flights, infos = _add_flights(view, package, [spec])
     refresh_asap(context.game, package)
-    earliest = None if package.auto_asap else earliest_fair_tot(context.game, package)
-    if earliest is not None:
+    shortfall = None if package.auto_asap else fair_tot_shortfall(context.game, package)
+    if shortfall is not None:
         _rollback(package, flights)
+        earliest, reason = shortfall
         raise ToolError(
-            f"This flight can't reach its join point by mission start for the "
-            f"package TOT {hms(package.time_over_target)}; the time before the "
-            "mission isn't fought. Move the package TOT to at least "
-            f"{hms(earliest)} first, or use a squadron closer to the target."
+            f"With the package TOT {hms(package.time_over_target)}, at mission "
+            f"start {reason}; the time before the mission isn't fought. Move the "
+            f"package TOT to at least {hms(earliest)} first, or use a squadron "
+            "closer to the target."
         )
     context.events.new_flight(flights[0])
     package_updated(context.events, package)
