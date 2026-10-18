@@ -2,8 +2,9 @@
 
 RED commanders own everything. A BLUE commander shares the side with the player,
 so it only owns the domains the player handed to HQ automation in the settings
-(design doc, open point 2). Air tasking, ground unit transfers and squadron
-relocation always belong to the commander; the player can still edit or add
+(design doc, open point 2). Air tasking, ground unit transfers, squadron
+relocation and fleet movement always belong to the commander; the player can
+still move ships on the map, and can still edit or add
 packages, which then become locked (``Package.player_locked``).
 """
 
@@ -28,6 +29,7 @@ class Domain(Enum):
     SITE_REPAIR = "site_repair"
     BUILDING_REPAIR = "building_repair"
     TRANSFERS = "transfers"
+    FLEET_MOVEMENT = "fleet_movement"
 
 
 #: The HQ automation setting that hands a domain to a BLUE commander. Domains
@@ -51,6 +53,7 @@ _DESCRIPTIONS: dict[Domain, str] = {
     "unit sites",
     Domain.BUILDING_REPAIR: "building repairs",
     Domain.TRANSFERS: "ground unit transfers and squadron relocation",
+    Domain.FLEET_MOVEMENT: "moving carriers, LHAs and naval groups",
 }
 
 

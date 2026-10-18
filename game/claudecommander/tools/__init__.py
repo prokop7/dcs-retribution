@@ -3,6 +3,7 @@ from . import (
     combatlog,
     ato,
     economy,
+    fleet,
     forces,
     geometry,
     loadouts,

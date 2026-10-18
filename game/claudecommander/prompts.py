@@ -56,6 +56,11 @@ armor), all within your budget.
 - Ground war: the stance of your forces on each front line, and ground unit \
 transfers.
 - Basing: relocating squadrons.
+- Fleet: moving carriers, LHAs and naval groups (get_fleet, move_fleet), up to \
+their max_move_nm per turn over open water. A move lands next turn: bring \
+carriers within strike range of next turn's targets, keep them out of reach of \
+enemy anti-ship missiles, coastal batteries and naval groups, and use naval \
+groups as air defense pickets or to cover the carrier.
 - Repairs: runways, sites and buildings.
 get_situation lists which of these domains you own (your_domains). The player \
 handles the rest; respect that.

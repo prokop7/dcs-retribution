@@ -54,6 +54,7 @@ from game.theater.player import Player
 from game.theater.theatergroundobject import (
     BuildingGroundObject,
     MotorpoolGroundObject,
+    ShipGroundObject,
     TheaterGroundObject,
     VehicleGroupGroundObject,
 )
@@ -748,6 +749,8 @@ class CommanderView:
             result["income"] = round(alive_buildings * REWARDS[tgo.category], 2)
         if tgo.is_iads:
             result["iads"] = True
+        if isinstance(tgo, ShipGroundObject) and tgo.target_position is not None:
+            result["moving_to"] = position(tgo.target_position)
         return result
 
     def enemy_ground_object_json(self, tgo: TheaterGroundObject) -> Json:
