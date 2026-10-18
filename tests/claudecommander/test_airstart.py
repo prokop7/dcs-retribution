@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
+from pathlib import Path
 
 from game import Game
 from game.ato.flight import Flight
@@ -195,3 +196,57 @@ def distance_to_target_nm(flight: Flight) -> float:
 
 def min_target_nm(flight: Flight) -> float:
     return min_target_distance_m(flight) / 1852
+
+
+def test_patrol_on_station_at_mission_start_is_a_valid_mission(
+    game: Game, tmp_path: Path
+) -> None:
+    import zipfile
+
+    from dcs import lua
+
+    from game.ato.flighttype import FlightType
+    from game.sim.gameloop import GameLoop
+    from game.sim.gameupdatecallbacks import GameUpdateCallbacks
+
+    start = game.conditions.start_time
+    patrols = [
+        flight
+        for package in game.blue.ato.packages
+        for flight in package.flights
+        if flight.flight_type is FlightType.BARCAP
+    ]
+    assert patrols
+    for flight in patrols:
+        # Due on station at mission start. The simulation flies legs a little
+        # slower than planned, so the flight spawns just short of its race track
+        # with the race track start time already reached.
+        flight.package.time_over_target = start
+
+    out = tmp_path / "patrols.miz"
+    GameLoop(
+        game, GameUpdateCallbacks(lambda: None, lambda e: None)
+    ).pause_and_generate_miz(out)
+    with zipfile.ZipFile(out) as miz:
+        mission = lua.loads(miz.read("mission").decode("utf-8"))["mission"]
+    ids = {f.group_id for f in patrols}
+    checked = 0
+    for coalition in mission["coalition"].values():
+        for country in coalition["country"].values():
+            for group in country.get("plane", {}).get("group", {}).values():
+                if group["groupId"] not in ids:
+                    continue
+                points = [p for _, p in sorted(group["route"]["points"].items())]
+                assert points[0]["type"] == "Turning Point", "should be airborne"
+                assert points[1].get("name") == "RACETRACK START"
+                locked = [bool(p.get("ETA_locked")) for p in points]
+                for index, point in enumerate(points[1:], start=1):
+                    speed = bool(point.get("speed_locked"))
+                    # DCS rejects a locked speed on a time-locked waypoint or
+                    # between time-locked waypoints.
+                    assert not (locked[index] and speed), (group["name"], index)
+                    assert not (
+                        speed and any(locked[:index]) and any(locked[index:])
+                    ), (group["name"], index)
+                checked += 1
+    assert checked

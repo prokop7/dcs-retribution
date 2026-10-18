@@ -124,6 +124,7 @@ class WaypointGenerator:
         for idx, point in enumerate(filtered_points):
             self.builder_for_waypoint(point).build()
 
+        self._unlock_past_times()
         self._resolve_locked_speed_time_conflicts()
 
         # Set here rather than when the FlightData is created so they waypoints
@@ -133,6 +134,20 @@ class WaypointGenerator:
         # late.
         self._estimate_min_fuel_for(waypoints)
         return mission_start_time, waypoints
+
+    def _unlock_past_times(self) -> None:
+        """Unlock the time of waypoints whose planned time has already passed.
+
+        Their ETA is clamped to mission start (0), and their speed is locked
+        instead. Left time-locked, they'd sit at time 0 next to the first waypoint
+        (also at 0 for a flight already in the air) with distance between them,
+        which DCS rejects: a patrol already on station at mission start, for one.
+        The first waypoint keeps its lock, which sets when the group appears.
+        """
+        for point in self.group.points[1:]:
+            if getattr(point, "ETA_locked", False) and point.ETA == 0:
+                point.ETA_locked = False
+                point.speed_locked = True
 
     def _resolve_locked_speed_time_conflicts(self) -> None:
         """Unlock the speed on any waypoint that has a locked speed between two
