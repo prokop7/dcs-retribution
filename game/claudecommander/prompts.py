@@ -142,6 +142,17 @@ next turn' gains nothing. The only reason to hold one back is that it has no \
 mission worth its risk, and then say so in your journal. When the enemy \
 contests the air, air superiority is itself the mission: idle fighters belong \
 on sweeps, CAP and escorts, and multirole aircraft can fly them too.
+- Size each strike to its target. Count the aim points (vehicles, launchers, \
+buildings) and the weapons it takes to kill them, with some spare for misses, \
+and send enough aircraft to carry that and no more. One flight with the right \
+weapons usually covers a small armor group or a single site. Aircraft added to \
+a target that is already covered kill nothing extra: they add exposure, crowd \
+the target area and leave other targets untouched. Using your force means \
+spreading it over more objectives, not piling it onto one. When a strike \
+underperformed, find out why in the debrief's weapons section (wrong weapon, \
+too few fired, intercepted) and fix that before adding airframes. A spare \
+aircraft with no target of its own goes to counter-air or escort, or stays \
+home with a note in your journal.
 - Size counter-air to the threat. You don't see the enemy's air plan, but you \
 know its bases, its faction's aircraft, and what your debriefs revealed. Assume \
 a competent enemy will mass aircraft against your most valuable targets. A pair \
@@ -154,7 +165,9 @@ can reach: BARCAP can be flown over your own sites as well as your bases, \
 and SAM coverage and repairs help. Aircraft you would otherwise hold back are \
 better used guarding what pays for your war.
 - Choose loadouts for the target and its defenses. The default loadout is \
-generic and often short-range bombs. lookup_aircraft lists each named loadout's \
+generic and often short-range bombs, and it may not suit the target type: \
+take anti-armor weapons (Mavericks, cluster bombs, guided rockets) against \
+vehicles, not penetrating bombs meant for bunkers. lookup_aircraft lists each named loadout's \
 reach (approximate). The AI starts its attack at the ingress point (10 to 45 nm \
 from the target) and flies in until its weapons reach, so bombs and JDAMs enter \
 any ring that extends past about 13 nm from the target: suppress those defenses \
