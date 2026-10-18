@@ -110,6 +110,7 @@ class MissionSimulation:
         self._record_commander_debriefings(debriefing)
 
     def _record_commander_debriefings(self, debriefing: Debriefing) -> None:
+        from game.claudecommander.combatlog import MISSIONS_KEPT, build_combat_log
         from game.claudecommander.coordinator import commander_enabled
         from game.claudecommander.debrief import (
             sightings_from_debriefing,
@@ -122,6 +123,9 @@ class MissionSimulation:
             self.game.coalition_for(player).commander.record_debriefing(
                 summarize_debriefing(debriefing, player),
                 sightings_from_debriefing(debriefing, player, self.game.turn),
+                build_combat_log(debriefing, player, self.game.turn),
+                self.game.turn,
+                MISSIONS_KEPT,
             )
 
     def finish(self) -> None:

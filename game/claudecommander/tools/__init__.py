@@ -1,5 +1,6 @@
 from . import (
     airchecks,
+    combatlog,
     ato,
     economy,
     forces,

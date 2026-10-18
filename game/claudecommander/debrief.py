@@ -412,6 +412,49 @@ class _WeaponFeed:
             return None
         return lookup(unit_name)
 
+    def ground_target(self, name: Optional[str]) -> Optional[tuple[Player, str]]:
+        """Owner and label of a ground target: a site or armor group unit, a
+        building, a front line or reserve unit, a convoy vehicle or a map object.
+
+        Site names are known to both sides (static intelligence), so they are part
+        of the label; DCS unit names never are.
+        """
+        if not name or self.unit_map is None:
+            return None
+        lookup = getattr(self.unit_map, "theater_units", None)
+        site = lookup(name) if lookup is not None else None
+        if site is not None:
+            unit = site.theater_unit
+            tgo = unit.ground_object
+            kind = "building" if unit.is_static else tgo.category
+            what = unit.unit_type.variant_id if unit.unit_type else unit.name
+            return tgo.control_point.captured, f"{tgo.name} ({kind}: {what})"
+        for method, kind in (
+            ("front_line_unit", "front line"),
+            ("motorpool_unit", "reserve"),
+        ):
+            lookup = getattr(self.unit_map, method, None)
+            found = lookup(name) if lookup is not None else None
+            if found is not None:
+                return (
+                    found.origin.captured,
+                    f"{found.unit_type.variant_id} ({kind}, {found.origin.name})",
+                )
+        lookup = getattr(self.unit_map, "convoy_unit", None)
+        convoy = lookup(name) if lookup is not None else None
+        if convoy is not None:
+            return (
+                convoy.convoy.player,
+                f"{convoy.unit_type.variant_id} (convoy to "
+                f"{convoy.convoy.destination.name})",
+            )
+        lookup = getattr(self.unit_map, "scenery_object", None)
+        scenery = lookup(name) if lookup is not None else None
+        if scenery is not None:
+            tgo = scenery.ground_unit.ground_object
+            return tgo.control_point.captured, f"{tgo.name} (building)"
+        return None
+
     def shooter_side(self, shot: ShotRecord) -> Optional[Player]:
         if shot.shooter_coalition in _DCS_COALITIONS:
             return _DCS_COALITIONS[shot.shooter_coalition]
@@ -433,6 +476,9 @@ class _WeaponFeed:
         flight = self.flight(name)
         if flight is not None:
             return flight.unit_type.variant_id
+        ground = self.ground_target(name)
+        if ground is not None:
+            return ground[1]
         site = self.site_unit(name)
         if site is not None and site.theater_unit.unit_type is not None:
             return site.theater_unit.unit_type.variant_id
@@ -445,7 +491,13 @@ class _WeaponFeed:
         site = self.site_unit(name)
         if site is not None and site.theater_unit.unit_type is not None:
             category = "ship" if site.theater_unit.is_ship else "air defense"
-            return f"{site.theater_unit.unit_type.variant_id} ({category})"
+            ground = self.ground_target(name)
+            label = (
+                ground[1]
+                if ground is not None
+                else (site.theater_unit.unit_type.variant_id)
+            )
+            return f"{label} ({category})"
         label, category = _describe_killer(dcs_type)
         return label if category == "unknown" else f"{label} ({category})"
 
@@ -575,6 +627,42 @@ def _enemy_fire_at_own_aircraft(feed: _WeaponFeed) -> list[dict[str, Any]]:
     return results
 
 
+def _enemy_fire_at_own_ground(feed: _WeaponFeed) -> list[dict[str, Any]]:
+    """Enemy weapons aimed at this side's ground forces, sites and buildings.
+
+    The units under attack see it; launchers appear by type only.
+    """
+    tallies: dict[tuple[str, str], _Tally] = {}
+    for shot in feed.shots:
+        if feed.shooter_side(shot) is not feed.player.opponent:
+            continue
+        if shot.target_is_weapon:
+            continue
+        ground = feed.ground_target(shot.target)
+        if ground is None or ground[0] is not feed.player:
+            continue
+        key = (
+            feed.describe_launcher(shot.shooter, shot.shooter_type),
+            _weapon_label(shot.weapon_name),
+        )
+        tally = tallies.setdefault(key, _Tally())
+        tally.fired += 1
+        tally.outcomes[feed.outcome(shot)] += 1
+        tally.targets[ground[1]] += 1
+    return [
+        {
+            "launcher": launcher,
+            "weapon": weapon,
+            "fired": tally.fired,
+            "hit": tally.outcomes["hit"],
+            "at": _top(tally.targets),
+        }
+        for (launcher, weapon), tally in sorted(
+            tallies.items(), key=lambda item: -item[1].fired
+        )[:_MAX_WEAPON_LINES]
+    ]
+
+
 def _own_air_defense(feed: _WeaponFeed) -> list[dict[str, Any]]:
     """Shots by this side's ground units and ships at aircraft and weapons."""
     tallies: dict[tuple[str, str, str], _Tally] = {}
@@ -636,8 +724,8 @@ def _weapons_summary(debriefing: Debriefing, player: Player) -> dict[str, Any]:
 
     The side sees everything its own aircraft and air defenses fired and what
     became of it (including which enemy defenses intercepted its weapons), and
-    enemy launches aimed at its own aircraft. Enemy shots at anything else are
-    left out.
+    enemy launches aimed at its own aircraft and at its ground forces, sites and
+    buildings. Enemy shots at anything else are left out.
     """
     feed = _WeaponFeed(debriefing, player)
     if not feed.shots:
@@ -651,6 +739,7 @@ def _weapons_summary(debriefing: Debriefing, player: Player) -> dict[str, Any]:
         "own_aircraft_totals": totals.outcome_counts(),
         "own_packages": _own_weapon_use(feed),
         "enemy_fire_at_own_aircraft": _enemy_fire_at_own_aircraft(feed),
+        "enemy_fire_at_own_ground": _enemy_fire_at_own_ground(feed),
         "own_air_defense": _own_air_defense(feed),
         "note": WEAPON_FEED_NOTE,
     }
@@ -803,6 +892,16 @@ def _weapons_markdown(weapons: dict[str, Any]) -> list[str]:
                 f"{e['fired']}x {e['weapon']} from {e['launcher']}: {e['hit']} hit"
                 + (f" (at {_count_text(e['at'])})" if e.get("at") else "")
                 for e in enemy_fire
+            )
+        )
+    ground_fire = weapons.get("enemy_fire_at_own_ground", [])
+    if ground_fire:
+        lines.append(
+            "**Enemy fired at your ground forces:** "
+            + "; ".join(
+                f"{e['fired']}x {e['weapon']} from {e['launcher']}: {e['hit']} hit"
+                + (f" (at {_count_text(e['at'])})" if e.get("at") else "")
+                for e in ground_fire
             )
         )
     air_defense = weapons.get("own_air_defense", [])

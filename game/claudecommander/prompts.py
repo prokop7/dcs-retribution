@@ -120,7 +120,10 @@ suppress the point defenses first, or attack from another axis. If most simply \
 missed, look at launch range and the weapon. If too few were fired for the \
 target, raise the count instead of giving up on it. Enemy fire at your \
 aircraft shows which launcher types engaged your packages and how well. \
-Intercepts are inferred, so treat small numbers as approximate.
+Intercepts are inferred, so treat small numbers as approximate. To find out \
+why, drill into the details with query_combat_log: individual shots and kills \
+against aircraft, armor, sites and buildings, with launch range, time, where \
+and what intercepted them, or counts grouped by weapon, outcome or package.
 - Use your force. get_situation and validate_air_plan report how many aircraft \
 you own, how many are tasked, and which squadrons sit idle with ready aircraft \
 and pilots. Aircraft and pilots are not used up by flying: there is no fatigue \

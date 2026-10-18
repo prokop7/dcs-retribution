@@ -235,6 +235,12 @@ def _unit_label(mapping: TheaterUnitMapping) -> str:
     return unit_type.variant_id
 
 
+def _site_label(mapping: TheaterUnitMapping) -> str:
+    """How the debrief names a site's unit: site name, category and unit type."""
+    tgo = mapping.theater_unit.ground_object
+    return f"{tgo.name} ({tgo.category}: {_unit_label(mapping)})"
+
+
 def _weapon_feed_debriefing(
     game: Game,
 ) -> tuple[Debriefing, TheaterUnitMapping, TheaterUnitMapping]:
@@ -366,7 +372,7 @@ def test_weapons_summary_for_own_packages(test_game: Game) -> None:
     debriefing, red_sam, blue_sam = _weapon_feed_debriefing(test_game)
     blue_flight = _first_flight(test_game, Player.BLUE)
     red_flight = _first_flight(test_game, Player.RED)
-    red_sam_label = _unit_label(red_sam)
+    red_sam_label = _site_label(red_sam)
 
     weapons = summarize_debriefing(debriefing, Player.BLUE)["weapons"]
 
@@ -410,7 +416,7 @@ def test_weapons_summary_for_own_packages(test_game: Game) -> None:
     [defense] = weapons["own_air_defense"]
     assert defense == {
         "site": blue_sam.theater_unit.ground_object.name,
-        "unit": _unit_label(blue_sam),
+        "unit": _site_label(blue_sam),
         "weapon": "5V55",
         "fired": 3,
         "hit": 1,
@@ -450,7 +456,7 @@ def test_weapons_markdown_is_readable(test_game: Game) -> None:
     assert "{" not in text and "}" not in text
     assert "**Weapons**" in text
     assert (
-        f"4x AGM-88C fired: 1 hit, 2 intercepted by 2x {_unit_label(red_sam)} "
+        f"4x AGM-88C fired: 1 hit, 2 intercepted by 2x {_site_label(red_sam)} "
         "(9M338), 1 no hit"
     ) in text
     assert "**Enemy fired at your aircraft:** 3x 9M338" in text

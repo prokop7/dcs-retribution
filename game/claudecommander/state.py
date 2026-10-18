@@ -59,6 +59,9 @@ class CommanderState:
     #: Enemy aircraft this side has encountered, revealed to its commander.
     sightings: list[EnemySighting] = field(default_factory=list)
 
+    #: The side's combat logs of its last missions, by turn (see combatlog.py).
+    combat_logs: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
+
     #: Digest of the system prompt the commander's session last received. Claude
     #: Code keeps a conversation's system prompt, so changed rules are sent in a
     #: run message instead.
@@ -77,10 +80,19 @@ class CommanderState:
         self.__dict__.update(new_state)
 
     def record_debriefing(
-        self, summary: dict[str, Any], sightings: list[EnemySighting]
+        self,
+        summary: dict[str, Any],
+        sightings: list[EnemySighting],
+        combat_log: Optional[list[dict[str, Any]]] = None,
+        turn: Optional[int] = None,
+        missions_kept: int = 3,
     ) -> None:
         self.pending_debrief = summary
         self.last_debrief = summary
+        if combat_log is not None and turn is not None:
+            self.combat_logs[turn] = combat_log
+            for old in sorted(self.combat_logs)[:-missions_kept]:
+                del self.combat_logs[old]
         known = set(self.sightings)
         self.sightings.extend(s for s in sightings if s not in known)
         self.needs_planning = True
