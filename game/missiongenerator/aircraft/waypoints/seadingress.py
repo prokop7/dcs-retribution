@@ -37,6 +37,7 @@ class SeadIngressBuilder(PydcsWaypointBuilder):
         burn_restrict = OptRestrictAfterburner(True)
         waypoint.tasks.append(burn_restrict)
 
+        has_arms = self.flight.any_member_has_weapon_of_type(WeaponType.ARM)
         for group in target.groups:
             miz_group = self.mission.find_group(group.group_name)
             if miz_group is None:
@@ -54,6 +55,21 @@ class SeadIngressBuilder(PydcsWaypointBuilder):
                 altitude=round(waypoint.alt * 1.5),  # 50% increase to force a climb
             )
             waypoint.tasks.append(attack_task)
+
+            if has_arms:
+                # Anti-radiation missiles need an emitting radar. An Attack Group task
+                # against a radar that is dark when the flight reaches this point
+                # (Skynet keeps SAMs dark until their targets are close and shuts
+                # them down when it sees ARMs) is abandoned at once, and the flight
+                # flies home without firing. Engage Group stays active along the
+                # rest of the route and fires as soon as the radar comes up. Bombs
+                # and other missiles are left to DEAD flights: they would take the
+                # flight into the live SAM.
+                engage_task = EngageGroup(miz_group.id)
+                engage_task.params["weaponType"] = DcsWeaponType.ARM.value
+                engage_task.params["expend"] = Expend.All.value
+                waypoint.tasks.append(engage_task)
+                continue
 
             attack_task = AttackGroup(
                 miz_group.id,

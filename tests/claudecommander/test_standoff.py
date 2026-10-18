@@ -39,20 +39,39 @@ JSOW_LOADOUT = "Retribution Anti-ship"
 NM = 1852.0
 
 
+def strike_factories(game: Game) -> list[TheaterGroundObject]:
+    view = CommanderView(game, Player.BLUE)
+    return [
+        tgo
+        for tgo in sorted(view.enemy_ground_objects(), key=lambda t: t.name)
+        if tgo.category == "factory"
+        and not tgo.is_dead
+        and FlightType.STRIKE in view.mission_types_for(tgo)
+    ]
+
+
 def covered_factory(game: Game) -> TheaterGroundObject:
     """The enemy factory inside the most known threat rings."""
     view = CommanderView(game, Player.BLUE)
     best: tuple[int, TheaterGroundObject] | None = None
-    for tgo in sorted(view.enemy_ground_objects(), key=lambda t: t.name):
-        if tgo.category != "factory" or tgo.is_dead:
-            continue
-        if FlightType.STRIKE not in view.mission_types_for(tgo):
-            continue
+    for tgo in strike_factories(game):
         _, threats = covering_threats_at(view, tgo.position, tgo.control_point.position)
         if best is None or len(threats) > best[0]:
             best = (len(threats), tgo)
     assert best is not None and best[0] > 0, "no factory inside threat rings"
     return best[1]
+
+
+def ring_depth(view: CommanderView, tgo: TheaterGroundObject) -> float:
+    """How far (m) known threat rings extend from a target in every direction."""
+    _, threats = covering_threats_at(view, tgo.position, tgo.control_point.position)
+    return max(
+        (
+            t.threat_range_m - t.position.distance_to_point(tgo.position)
+            for t in threats
+        ),
+        default=0.0,
+    )
 
 
 def f16_strike(caller: Caller, target: TheaterGroundObject) -> dict[str, Any]:
@@ -133,13 +152,22 @@ def test_task_decides_which_weapons_count() -> None:
 
 
 def test_reach_warning_names_a_loadout_that_reaches(game: Game) -> None:
-    clear_ato(game, Player.BLUE)
     caller = Caller(game, Player.BLUE)
-    target = covered_factory(game)
-    data = f16_strike(caller, target)
-    flight_id = data["flights"][0]["id"]
-    warnings = [w for w in data.get("warnings", []) if "threat rings" in w]
+    view = CommanderView(game, Player.BLUE)
+    # The warning needs rings reaching past the GBUs' 13 nm along the flight's
+    # approach, which depends on the generated campaign. Try the factories
+    # covered most deeply first.
+    warnings: list[str] = []
+    for target in sorted(strike_factories(game), key=lambda t: -ring_depth(view, t))[
+        :5
+    ]:
+        clear_ato(game, Player.BLUE)
+        data = f16_strike(caller, target)
+        warnings = [w for w in data.get("warnings", []) if "threat rings" in w]
+        if warnings:
+            break
     assert len(warnings) == 1, data.get("warnings")
+    flight_id = data["flights"][0]["id"]
     assert "reach ~13 nm" in warnings[0]
     assert repr(JSOW_LOADOUT) in warnings[0]
     # Facts only: the loadout is not changed.
