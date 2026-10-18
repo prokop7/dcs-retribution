@@ -136,9 +136,9 @@ def enemy_intel(view: CommanderView, args: EnemyIntelArgs) -> Json:
     )
     result: Json = {
         "side": view.enemy.value,
-        "note": "Static intelligence: site layouts and ranges are at full strength. "
-        "Enemy aircraft, ground unit counts, orders, transfers and the enemy ATO "
-        "are unknown.",
+        "note": "Site layouts are at full strength. Threat and detection ranges are "
+        "what each site can engage and see with now. Enemy aircraft, ground unit "
+        "counts, orders, transfers and the enemy ATO are unknown.",
     }
     if "bases" in kinds:
         bases = [
@@ -200,9 +200,10 @@ def get_own_forces(context: CommanderContext, args: OwnForcesArgs) -> Json:
     "get_enemy_intel",
     "What your side knows about the enemy (and neutral bases). bases: type, "
     "position, owner, runway damage, parking capacity. ground_objects: every enemy "
-    "site with category, unit types at full strength, nominal threat/detection "
-    "range and income value of buildings; sites with no survivors show as "
-    "destroyed, partial damage is unknown. front_lines: positions. catalogue: the "
+    "site with category, unit types at full strength, current threat/detection "
+    "range (air_defense says when radars or launchers are down, with the "
+    "full-strength range) and income value of buildings; sites with no survivors "
+    "show as destroyed, other partial damage is unknown. front_lines: positions. catalogue: the "
     "enemy faction's aircraft and units. sightings: enemy aircraft you have "
     "encountered. Enemy aircraft per base, ground unit counts, orders and the "
     "enemy ATO are unknown. Same filters and paging as get_own_forces.",

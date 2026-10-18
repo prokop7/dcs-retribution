@@ -139,8 +139,8 @@ def route_threats(view: CommanderView, args: RouteThreatArgs) -> Json:
             leg["detection"] = sorted(detection, key=lambda t: t["entry_nm"])
         legs.append(leg)
     return {
-        "note": "Known enemy ground and naval air defenses only, at full-strength "
-        "ranges, as circles without terrain masking. entry/exit/closest are nm "
+        "note": "Known enemy ground and naval air defenses only, at the ranges "
+        "they can engage and see with now, as circles without terrain masking. entry/exit/closest are nm "
         "from the start of the leg. Enemy fighters are not included.",
         "legs": legs,
         "total_nm": to_nm(total),
@@ -164,8 +164,9 @@ def measure_tool(context: CommanderContext, args: MeasureArgs) -> Json:
     "For a route (points as in measure), lists for each leg which known enemy air "
     "defense engagement ranges it enters, with entry/exit distance along the leg "
     "and closest approach, and optionally which radar detection ranges it "
-    "crosses. Uses only enemy sites your side knows, at nominal full-strength "
-    "ranges; destroyed sites are excluded.",
+    "crosses. Uses only enemy sites your side knows, at the ranges they can "
+    "engage with now; destroyed sites and SAMs with no working radar are "
+    "excluded.",
     RouteThreatArgs,
     read_only=True,
 )

@@ -96,7 +96,7 @@ All reads go through this view. Nothing hands raw `Game` objects to the tools.
   - buildings with strategic/income value
   - front-line positions
   - the faction's aircraft and unit catalogue
-- **Enemy, dynamic (hidden):** ATO and flight plans, exact aircraft counts per base, exact ground-unit counts, current SAM unit health and repairs in progress. Damage to the enemy is only reported through debriefs, as "confirmed kills".
+- **Enemy, dynamic (hidden):** ATO and flight plans, exact aircraft counts per base, exact ground-unit counts, current SAM unit health and repairs in progress. What a SAM can engage with right now (its working radar/launcher pairs, as its emissions would show) is known, so its threat range drops when its radars die and comes back when they are repaired. Damage to the enemy is only reported through debriefs, as "confirmed kills".
 - **Specification lookups:** aircraft (role, combat radius, speed, sensors, weapons by era), weapons, ground units, and the IADS/SAM ranges known for the other side.
 - **Geometry helpers:** distance and bearing; a route threat check against *known* enemy threat zones; travel time and fuel estimates for a candidate flight plan.
 

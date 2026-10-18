@@ -91,7 +91,7 @@ def covering_threats_at(
     view: CommanderView, target: Point, origin: Point
 ) -> tuple[float, list[KnownThreat]]:
     """Known threat rings that cover a target, and how far (nm) they extend from
-    it towards ``origin``. Ground-level engagement ranges at full strength."""
+    it towards ``origin``. Ground-level engagement ranges as they are now."""
     dx, dy = origin.x - target.x, origin.y - target.y
     length = math.hypot(dx, dy)
     direction = (dx / length, dy / length) if length else (1.0, 0.0)

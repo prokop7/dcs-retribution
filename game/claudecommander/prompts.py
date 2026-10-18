@@ -115,6 +115,12 @@ conserve scarce airframes and pilots.
 - You only know what your side knows. Enemy bases, sites and their capabilities \
 are known. Enemy air movements, squadron strength and damage are not, except for \
 what your debriefs reveal. Infer, and plan for what the enemy is likely to do.
+- Threat and detection ranges in the tools are what each enemy air defense can \
+engage and see with right now, as its radar emissions show. A SAM whose radars \
+or launchers are dead is marked suppressed and has no missile ring, so it can't \
+hurt a route until it is repaired. A degraded one shows only the range of the \
+weapons that still work. Trust those ranges over the site's history, and check \
+again each turn: repaired and rebuilt sites come back.
 - Plan missions that can be flown: respect roles, ranges, weapons, threat rings, \
 weather and time of day. Sequence packages so SEAD/DEAD, escorts, CAP and strikes \
 support each other, and deconflict times over target.

@@ -13,11 +13,15 @@ from game.claudecommander.mcpserver import commander_dispatcher
 from game.claudecommander.view import (
     CommanderView,
     EnemySighting,
+    Json,
     PACKAGE_IDS,
+    current_ranges,
     nominal_ranges,
 )
+from game.data.radar_db import LAUNCHER_TRACKER_PAIRS, TRACK_RADARS
 from game.sim import GameUpdateEvents
 from game.theater.player import Player
+from game.theater.theatergroup import TheaterUnit
 from game.theater.theatergroundobject import (
     MotorpoolGroundObject,
     TheaterGroundObject,
@@ -238,7 +242,9 @@ def test_partial_damage_of_enemy_site_is_hidden(test_game: Game) -> None:
     tgo = enemy_site_with(test_game, Player.BLUE, min_units=2)
     view = CommanderView(test_game, Player.BLUE)
     before = view.enemy_ground_object_json(tgo)
-    victim = next(u for u in tgo.units if u.is_anti_air)
+    # Losing a unit that doesn't change what the site can engage or see with
+    # (say a spare launcher) stays hidden.
+    victim = next(u for u in tgo.units if keeps_ranges_without(tgo, u))
     victim.alive = False
     tgo.invalidate_threat_poly()
     try:
@@ -258,6 +264,93 @@ def test_partial_damage_of_enemy_site_is_hidden(test_game: Game) -> None:
     assert [g for g in listed["ground_objects"] if g["id"] == str(tgo.id)] == [before]
     # The owner sees the damage.
     assert own["alive"] == tgo.unit_count - 1
+
+
+def keeps_ranges_without(tgo: TheaterGroundObject, unit: TheaterUnit) -> bool:
+    before = current_ranges(tgo)
+    unit.alive = False
+    try:
+        return current_ranges(tgo) == before
+    finally:
+        unit.alive = True
+
+
+def enemy_sam_with_radars(game: Game, player: Player) -> TheaterGroundObject:
+    """An enemy SAM with launchers that need a separate tracking radar."""
+    view = CommanderView(game, player)
+    for tgo in view.enemy_ground_objects():
+        if (
+            tgo.category == "aa"
+            and tgo.alive_unit_count == tgo.unit_count
+            and any(u.type in TRACK_RADARS for u in tgo.units)
+            and any(u.type in LAUNCHER_TRACKER_PAIRS for u in tgo.units)
+        ):
+            return tgo
+    raise AssertionError("The test campaign has no enemy SAM with tracking radars")
+
+
+def threat_state(
+    game: Game, tgo: TheaterGroundObject, dead: list[TheaterUnit], offset_m: float
+) -> tuple[Json, set[str], set[str]]:
+    """With ``dead`` killed: the site's intel entry, the ids of known engagement
+    threats, and the threats on a route passing ``offset_m`` from the site."""
+    view = CommanderView(game, Player.BLUE)
+    full_threat_m, _ = nominal_ranges(tgo)
+    start = {"x": tgo.position.x - 3 * full_threat_m, "y": tgo.position.y + offset_m}
+    end = {"x": tgo.position.x + 3 * full_threat_m, "y": tgo.position.y + offset_m}
+    for unit in dead:
+        unit.alive = False
+    tgo.invalidate_threat_poly()
+    try:
+        entry = view.enemy_ground_object_json(tgo)
+        engagement = {t.id for t in view.known_threats(include_detection_only=False)}
+        route = call_json(
+            game, Player.BLUE, "check_route_threats", {"points": [start, end]}
+        )
+    finally:
+        for unit in dead:
+            unit.alive = True
+        tgo.invalidate_threat_poly()
+    return entry, engagement, {t["id"] for t in route["legs"][0]["threats"]}
+
+
+def test_enemy_sam_without_radars_shows_what_it_can_still_engage(
+    test_game: Game,
+) -> None:
+    tgo = enemy_sam_with_radars(test_game, Player.BLUE)
+    site = str(tgo.id)
+    full_threat_m, _ = nominal_ranges(tgo)
+    full_nm = pytest.approx(full_threat_m / 1852, abs=0.1)
+    radars = [u for u in tgo.units if u.type in TRACK_RADARS]
+    guns = [
+        u
+        for u in tgo.units
+        if u.is_anti_air
+        and u.type not in TRACK_RADARS
+        and u.type not in LAUNCHER_TRACKER_PAIRS
+        and (getattr(u.type, "threat_range", None) or 0) > 0
+    ]
+    offset_m = full_threat_m / 2
+
+    # Intact: the full missile ring.
+    entry, engagement, on_route = threat_state(test_game, tgo, [], offset_m)
+    assert entry["threat_nm"] == full_nm and "air_defense" not in entry
+    assert site in engagement and site in on_route
+
+    # Tracking radars dead: the missiles can't be guided. Only the guns, if any,
+    # still shoot, and a route well outside their reach is clear.
+    entry, engagement, on_route = threat_state(test_game, tgo, radars, offset_m)
+    assert entry["status"] == "active"
+    assert entry["full_strength_threat_nm"] == full_nm
+    assert entry.get("threat_nm", 0) < full_threat_m / 1852 / 2
+    assert site not in on_route
+
+    # Radars and guns dead, launchers still standing: suppressed, no ring.
+    entry, engagement, on_route = threat_state(test_game, tgo, radars + guns, offset_m)
+    assert entry["status"] == "active"
+    assert "threat_nm" not in entry
+    assert entry["air_defense"].startswith("suppressed")
+    assert site not in engagement and site not in on_route
 
 
 def test_destroyed_enemy_site_is_reported_destroyed(test_game: Game) -> None:

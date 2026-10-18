@@ -9,11 +9,14 @@ section 2.3):
 
 * Own side: everything.
 * Enemy, known: control points (type, position, owner, runway damage), ground
-  object sites with their category, layout (unit types at full strength) and
-  nominal detection/threat ranges, the strategic value of buildings, front line
-  positions, and the enemy faction's catalogue. A site with no unit left alive is
-  reported as destroyed (battle damage assessment), but partial damage, unit
-  health and repairs are not.
+  object sites with their category, layout (unit types at full strength), the
+  strategic value of buildings, front line positions, and the enemy faction's
+  catalogue. A site with no unit left alive is reported as destroyed (battle
+  damage assessment). Air defense threat and detection ranges are what the site
+  can engage and see with right now, as its radar emissions would show: a SAM
+  whose tracking radars are dead has no missile ring until they are repaired.
+  Unit counts, partial damage that doesn't change those ranges, and repairs in
+  progress are hidden.
 * Enemy, hidden: ATO and flight plans, squadrons and aircraft per base, ground
   units at bases and on the front, the contents of motorpools, purchase orders,
   transfers and convoys, and the budget.
@@ -115,7 +118,7 @@ class UnknownIdError(ToolError):
 
 @dataclass(frozen=True)
 class KnownThreat:
-    """A known enemy air defense, with ranges at full strength."""
+    """A known enemy air defense, with the ranges it can engage and see with now."""
 
     id: str
     name: str
@@ -196,6 +199,15 @@ def nominal_ranges(tgo: TheaterGroundObject) -> tuple[float, float]:
         threat = max(threat, group_threat)
         detection = max(detection, group_detection)
     return threat, detection
+
+
+def current_ranges(tgo: TheaterGroundObject) -> tuple[float, float]:
+    """(threat, detection) range in meters of a ground object as it is now.
+
+    Only working radar/launcher pairs and surviving units count, like the game's
+    own threat zones.
+    """
+    return tgo.max_threat_range().meters, tgo.max_detection_range().meters
 
 
 def _time(value: Any) -> Optional[str]:
@@ -765,11 +777,23 @@ class CommanderView:
             return result
         result["status"] = "active"
         result["units"] = dict(Counter(_unit_label(u) for u in tgo.units))
-        threat, detection = nominal_ranges(tgo)
+        threat, detection = current_ranges(tgo)
+        full_threat, full_detection = nominal_ranges(tgo)
         if threat:
             result["threat_nm"] = to_nm(threat)
         if detection:
             result["detection_nm"] = to_nm(detection)
+        if full_threat > threat:
+            result["full_strength_threat_nm"] = to_nm(full_threat)
+            result["air_defense"] = (
+                "suppressed: its radars or launchers are down, so it can't fire "
+                "missiles until they are repaired"
+                if not threat
+                else "degraded: only its shorter-range weapons work until it is "
+                "repaired"
+            )
+        if full_detection > detection:
+            result["full_strength_detection_nm"] = to_nm(full_detection)
         if tgo.category in REWARDS:
             buildings = sum(1 for _ in tgo.statics)
             result["income_value"] = round(buildings * REWARDS[tgo.category], 2)
@@ -805,12 +829,13 @@ class CommanderView:
         return summary
 
     def known_threats(self, include_detection_only: bool = True) -> list[KnownThreat]:
-        """Known enemy air defenses (ground and naval), at full-strength ranges."""
+        """Known enemy air defenses (ground and naval), at the ranges they can
+        engage and see with now."""
         threats = []
         for tgo in self.enemy_ground_objects():
             if tgo.is_dead or isinstance(tgo, MotorpoolGroundObject):
                 continue
-            threat, detection = nominal_ranges(tgo)
+            threat, detection = current_ranges(tgo)
             if not threat and not (include_detection_only and detection):
                 continue
             threats.append(
